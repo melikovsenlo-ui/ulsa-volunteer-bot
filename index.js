@@ -112,29 +112,45 @@ app.post("/tally", async (req, res) => {
   }
 });
 client.on("messageCreate", async (message) => {
-
-  // Игнорируем сообщения самого бота
   if (message.author.bot) return;
 
-  // Работаем только с личными сообщениями
-  if (message.channel.type !== 1) return;
+  if (!message.channel.isDMBased()) return;
+
+  console.log(
+    `📩 Получено ЛС от ${message.author.username}: ${message.content}`
+  );
 
   try {
-
     const channel = await client.channels.fetch(CHANNEL_ID);
 
-    if (!channel) return;
+    if (!channel) {
+      console.log("❌ Канал заявок не найден");
+      return;
+    }
 
     const embed = new EmbedBuilder()
       .setTitle("💬 Ответ от заявителя")
       .setDescription(
         `**👤 Пользователь:** ${message.author.username}\n\n` +
-        `**Сообщение:**\n${message.content}`
+        `**Сообщение:**\n${message.content || "(сообщение без текста)"}`
       )
       .setTimestamp()
       .setFooter({
-        text: "ULSA Volunteer Center • Ответ заявителя"
+        text: "ULSA Volunteer Center"
       });
+
+    await channel.send({
+      embeds: [embed]
+    });
+
+    console.log(
+      `✅ Ответ ${message.author.username} отправлен в канал заявок`
+    );
+
+  } catch (error) {
+    console.error("❌ Ошибка обработки ЛС:", error);
+  }
+});
 
     await channel.send({
       embeds: [embed]
