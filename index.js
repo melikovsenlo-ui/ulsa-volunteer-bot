@@ -446,19 +446,23 @@ ULSA Volunteer Center осуществляет координацию и орг�
     }
   ];
 
-  for (const rule of rules) {
-    const embed = new EmbedBuilder()
-      .setTitle(rule.title)
-      .setDescription(rule.description)
-      .setFooter({
-        text: "ULSA Volunteer Center • Volunteer Guidelines"
-      })
-      .setTimestamp();
+for (const rule of rules) {
+  const embed = new EmbedBuilder()
+    .setTitle(rule.title)
+    .setDescription(rule.description)
+    .setFooter({
+      text: "ULSA Volunteer Center • Volunteer Guidelines"
+    })
+    .setTimestamp();
 
-    await rulesChannel.send({
-      embeds: [embed]
-    });
+  if (rule.title === "ULSA VOLUNTEER CENTER") {
+    embed.setImage("https://cdn.discordapp.com/attachments/1544128560598622279/1544131589410267136/1788220045708-01a05a37-af3e-771f-939d-db811849866a.png?ex=6a97641b&is=6a96129b&hm=769edab29aadfc426ef1197743f4dde1179352f9aa39e3e666996785effe5282&");
   }
+
+  await rulesChannel.send({
+    embeds: [embed]
+  });
+}
 
   console.log("📑 Все правила успешно опубликованы.");
 });
