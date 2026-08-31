@@ -111,7 +111,39 @@ app.post("/tally", async (req, res) => {
     res.status(500).send("Ошибка");
   }
 });
+client.on("messageCreate", async (message) => {
 
+  // Игнорируем сообщения самого бота
+  if (message.author.bot) return;
+
+  // Работаем только с личными сообщениями
+  if (message.channel.type !== 1) return;
+
+  try {
+
+    const channel = await client.channels.fetch(CHANNEL_ID);
+
+    if (!channel) return;
+
+    const embed = new EmbedBuilder()
+      .setTitle("💬 Ответ от заявителя")
+      .setDescription(
+        `**👤 Пользователь:** ${message.author.username}\n\n` +
+        `**Сообщение:**\n${message.content}`
+      )
+      .setTimestamp()
+      .setFooter({
+        text: "ULSA Volunteer Center • Ответ заявителя"
+      });
+
+    await channel.send({
+      embeds: [embed]
+    });
+
+  } catch (error) {
+    console.error("Ошибка обработки ЛС:", error);
+  }
+});
 client.on("interactionCreate", async (interaction) => {
 
   if (interaction.isButton()) {
