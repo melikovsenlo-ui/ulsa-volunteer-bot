@@ -450,20 +450,16 @@ for (const rule of rules) {
   const embed = new EmbedBuilder()
     .setTitle(rule.title)
     .setDescription(rule.description)
+    .setImage("https://cdn.discordapp.com/attachments/1544128560598622279/1544132694290464808/image.png?ex=6a976522&is=6a9613a2&hm=859f5cc0dac4b28853834b9a862caf8385fa35ee5023c444aced4bfc255fb7e6&")
     .setFooter({
       text: "ULSA Volunteer Center • Volunteer Guidelines"
     })
     .setTimestamp();
 
-  if (rule.title === "ULSA VOLUNTEER CENTER") {
-    embed.setImage("https://cdn.discordapp.com/attachments/1544128560598622279/1544131589410267136/1788220045708-01a05a37-af3e-771f-939d-db811849866a.png?ex=6a97641b&is=6a96129b&hm=769edab29aadfc426ef1197743f4dde1179352f9aa39e3e666996785effe5282&");
-  }
-
   await rulesChannel.send({
     embeds: [embed]
   });
 }
-
   console.log("📑 Все правила успешно опубликованы.");
 });
 
