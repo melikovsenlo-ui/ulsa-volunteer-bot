@@ -44,23 +44,30 @@ app.post("/tally", async (req, res) => {
 
     for (const field of fields) {
       const name = field.label || field.key || "Поле";
+
       let value = field.value;
 
       if (Array.isArray(value)) {
         value = value.join(", ");
       }
 
-      if (value === null || value === undefined || value === "") {
+      if (
+        value === null ||
+        value === undefined ||
+        value === ""
+      ) {
         value = "Не указано";
       }
 
-      if (
-        name.toLowerCase().includes("discord")
-      ) {
+      if (name.toLowerCase().includes("discord")) {
         applicant = String(value);
       }
 
       description += `**${name}:** ${value}\n`;
+    }
+
+    if (!description) {
+      description = "Данные заявки не найдены.";
     }
 
     const embed = new EmbedBuilder()
@@ -75,7 +82,7 @@ app.post("/tally", async (req, res) => {
         text: "ULSA Volunteer Center"
       });
 
-    const row = new ActionRowBuilder().addComponents(
+    const buttons = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("reply")
         .setLabel("💬 Ответить")
@@ -94,7 +101,7 @@ app.post("/tally", async (req, res) => {
 
     await channel.send({
       embeds: [embed],
-      components: [row]
+      components: [buttons]
     });
 
     res.status(200).send("OK");
@@ -106,10 +113,6 @@ app.post("/tally", async (req, res) => {
 });
 
 client.on("interactionCreate", async (interaction) => {
-
-  if (!interaction.isButton() && !interaction.isModalSubmit()) {
-    return;
-  }
 
   if (interaction.isButton()) {
 
@@ -127,7 +130,8 @@ client.on("interactionCreate", async (interaction) => {
         .setRequired(true)
         .setMaxLength(2000);
 
-      const row = new ActionRowBuilder().addComponents(answer);
+      const row = new ActionRowBuilder()
+        .addComponents(answer);
 
       modal.addComponents(row);
 
@@ -138,8 +142,7 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.customId === "accept") {
 
       await interaction.reply({
-        content: "✅ Заявка отмечена как **принятая**.",
-        ephemeral: false
+        content: "✅ Заявка отмечена как принятая."
       });
 
       return;
@@ -148,8 +151,7 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.customId === "reject") {
 
       await interaction.reply({
-        content: "❌ Заявка отмечена как **отклонённая**.",
-        ephemeral: false
+        content: "❌ Заявка отмечена как отклонённая."
       });
 
       return;
@@ -158,91 +160,129 @@ client.on("interactionCreate", async (interaction) => {
 
   if (interaction.isModalSubmit()) {
 
-  if (interaction.customId === "reply_modal") {
+    if (interaction.customId === "reply_modal") {
 
-    const answer = interaction.fields.getTextInputValue("answer");
+      const answer =
+        interaction.fields.getTextInputValue("answer");
 
-    const message = interaction.message;
+      const message = interaction.message;
 
-    if (!message || !message.embeds.length) {
-      await interaction.reply({
-        content: "❌ Не удалось определить заявку.",
-        ephemeral: true
-      });
+      if (!message || !message.embeds.length) {
+
+        await interaction.reply({
+          content: "❌ Не удалось определить заявку.",
+          ephemeral: true
+        });
+
+        return;
+      }
+
+      const embed = message.embeds[0];
+
+      const discordField = embed.fields?.find(
+        field =>
+          field.name === "👤 Discord заявителя"
+      );
+
+      if (!discordField) {
+
+        await interaction.reply({
+          content:
+            "❌ В заявке не найден Discord username.",
+          ephemeral: true
+        });
+
+        return;
+      }
+
+      const username = discordField.value
+        .replace("@", "")
+        .trim();
+
+      const guild = interaction.guild;
+
+      if (!guild) {
+
+        await interaction.reply({
+          content: "❌ Не удалось определить сервер.",
+          ephemeral: true
+        });
+
+        return;
+      }
+
+      try {
+
+        const members = await guild.members.fetch();
+
+        const member = members.find(
+          member =>
+            member.user.username.toLowerCase() ===
+            username.toLowerCase()
+        );
+
+        if (!member) {
+
+          await interaction.reply({
+            content:
+              `❌ Пользователь **${username}** не найден на сервере ULSA.\n\n` +
+              `Проверьте правильность Discord username.`,
+            ephemeral: true
+          });
+
+          return;
+        }
+
+        try {
+
+          await member.send({
+            content:
+              `📩 **Ответ от ULSA Volunteer Center**\n\n${answer}`
+          });
+
+          await interaction.reply({
+            content:
+              `✅ Ответ отправлен пользователю **${member.user.username}** в личные сообщения.`
+          });
+
+        } catch (dmError) {
+
+          await interaction.reply({
+            content:
+              `❌ Не удалось отправить ЛС пользователю **${member.user.username}**.\n` +
+              `Возможно, у него закрыты личные сообщения.`,
+            ephemeral: true
+          });
+        }
+
+      } catch (error) {
+
+        console.error(error);
+
+        await interaction.reply({
+          content:
+            "❌ Произошла ошибка при поиске пользователя.",
+          ephemeral: true
+        });
+      }
+
       return;
     }
-
-    const embed = message.embeds[0];
-
-    const discordField = embed.fields?.find(
-      field => field.name === "👤 Discord заявителя"
-    );
-
-    if (!discordField) {
-      await interaction.reply({
-        content: "❌ В заявке не найден Discord username.",
-        ephemeral: true
-      });
-      return;
-    }
-
-    const username = discordField.value
-      .replace("@", "")
-      .trim();
-
-    const guild = interaction.guild;
-
-    const members = await guild.members.fetch();
-
-    const member = members.find(
-      m => m.user.username.toLowerCase() === username.toLowerCase()
-    );
-
-    if (!member) {
-      await interaction.reply({
-        content:
-          `❌ Пользователь **${username}** не найден на сервере ULSA.\n\n` +
-          `Проверьте, что он находится на сервере и указал правильный Discord username.`,
-        ephemeral: true
-      });
-      return;
-    }
-
-    try {
-
-      await member.send({
-        content:
-          `📩 **Ответ от ULSA Volunteer Center**\n\n${answer}`
-      });
-
-      await interaction.reply({
-        content:
-          `✅ Ответ успешно отправлен пользователю **${member.user.username}** в личные сообщения.`,
-        ephemeral: false
-      });
-
-    } catch (error) {
-
-      await interaction.reply({
-        content:
-          `❌ Не удалось отправить ЛС пользователю **${member.user.username}**.\n` +
-          `Возможно, у него закрыты личные сообщения от участников сервера.`,
-        ephemeral: true
-      });
-
-    }
-
-    return;
   }
-}
+});
+
 client.once("ready", () => {
-  console.log(`Бот запущен: ${client.user.tag}`);
+  console.log(
+    `Бот запущен: ${client.user.tag}`
+  );
 });
 
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`Сервер запущен на порту ${PORT}`);
+  console.log(
+    `Сервер запущен на порту ${PORT}`
+  );
 });
 
 client.login(DISCORD_TOKEN);
