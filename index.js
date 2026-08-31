@@ -111,47 +111,10 @@ app.post("/tally", async (req, res) => {
     res.status(500).send("Ошибка");
   }
 });
-client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
-  if (!message.channel.isDMBased()) return;
 
-  console.log(
-    `📩 Получено ЛС от ${message.author.username}: ${message.content}`
-  );
+client.on("interactionCreate", async (interaction) => {
 
-  try {
-    const channel = await client.channels.fetch(CHANNEL_ID);
-
-    if (!channel) {
-      console.log("❌ Канал заявок не найден");
-      return;
-    }
-
-    const embed = new EmbedBuilder()
-      .setTitle("💬 Ответ от заявителя")
-      .setDescription(
-        `**👤 Пользователь:** ${message.author.username}\n\n` +
-        `**Сообщение:**\n${message.content || "(сообщение без текста)"}`
-      )
-      .setTimestamp()
-      .setFooter({
-        text: "ULSA Volunteer Center"
-      });
-
-    await channel.send({
-      embeds: [embed]
-    });
-
-    console.log(
-      `✅ Ответ ${message.author.username} отправлен в канал заявок`
-    );
-
-  } catch (error) {
-    console.error("❌ Ошибка обработки ЛС:", error);
-  }
-});
-  client.on("interactionCreate", async (interaction) => {
-      if (interaction.isButton()) {
+  if (interaction.isButton()) {
 
     if (interaction.customId === "reply") {
 
@@ -177,86 +140,10 @@ client.on("messageCreate", async (message) => {
     }
 
     if (interaction.customId === "accept") {
+
       await interaction.reply({
         content: "✅ Заявка отмечена как принятая."
       });
-      return;
-    }
-
-    if (interaction.customId === "reject") {
-      await interaction.reply({
-        content: "❌ Заявка отмечена как отклонённая."
-      });
-      return;
-    }
-  }
-
-  if (interaction.isModalSubmit()) {
-
-    if (interaction.customId === "reply_modal") {
-
-      const answer =
-        interaction.fields.getTextInputValue("answer");
-
-      await interaction.reply({
-        content:
-          `💬 **Ответ отправлен:**\n\n${answer}`,
-        ephemeral: false
-      });
-
-      return;
-    }
-  }
-});
-
-    await channel.send({
-      embeds: [embed]
-    });
-
-  } catch (error) {
-    console.error("Ошибка обработки ЛС:", error);
-  }
-});
-client.on("interactionCreate", async (interaction) => {
-client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
-  if (!message.channel.isDMBased()) return;
-
-  console.log(
-    `📩 Получено ЛС от ${message.author.username}: ${message.content}`
-  );
-
-  try {
-    const channel = await client.channels.fetch(CHANNEL_ID);
-
-    if (!channel) {
-      console.log("❌ Канал заявок не найден");
-      return;
-    }
-
-    const embed = new EmbedBuilder()
-      .setTitle("💬 Ответ от заявителя")
-      .setDescription(
-        `**👤 Пользователь:** ${message.author.username}\n\n` +
-        `**Сообщение:**\n${message.content || "(сообщение без текста)"}`
-      )
-      .setTimestamp()
-      .setFooter({
-        text: "ULSA Volunteer Center"
-      });
-
-    await channel.send({
-      embeds: [embed]
-    });
-
-    console.log(
-      `✅ Ответ ${message.author.username} отправлен в канал заявок`
-    );
-
-  } catch (error) {
-    console.error("❌ Ошибка обработки ЛС:", error);
-  }
-});
 
       return;
     }
@@ -293,8 +180,7 @@ client.on("messageCreate", async (message) => {
       const embed = message.embeds[0];
 
       const discordField = embed.fields?.find(
-        field =>
-          field.name === "👤 Discord заявителя"
+        field => field.name === "👤 Discord заявителя"
       );
 
       if (!discordField) {
