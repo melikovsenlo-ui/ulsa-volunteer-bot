@@ -161,37 +161,45 @@ client.on("messageCreate", async (message) => {
   }
 });
 client.on("interactionCreate", async (interaction) => {
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
+  if (!message.channel.isDMBased()) return;
 
-  if (interaction.isButton()) {
+  console.log(
+    `📩 Получено ЛС от ${message.author.username}: ${message.content}`
+  );
 
-    if (interaction.customId === "reply") {
+  try {
+    const channel = await client.channels.fetch(CHANNEL_ID);
 
-      const modal = new ModalBuilder()
-        .setCustomId("reply_modal")
-        .setTitle("Ответ заявителю");
-
-      const answer = new TextInputBuilder()
-        .setCustomId("answer")
-        .setLabel("Ваш ответ")
-        .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder("Введите ответ заявителю...")
-        .setRequired(true)
-        .setMaxLength(2000);
-
-      const row = new ActionRowBuilder()
-        .addComponents(answer);
-
-      modal.addComponents(row);
-
-      await interaction.showModal(modal);
+    if (!channel) {
+      console.log("❌ Канал заявок не найден");
       return;
     }
 
-    if (interaction.customId === "accept") {
-
-      await interaction.reply({
-        content: "✅ Заявка отмечена как принятая."
+    const embed = new EmbedBuilder()
+      .setTitle("💬 Ответ от заявителя")
+      .setDescription(
+        `**👤 Пользователь:** ${message.author.username}\n\n` +
+        `**Сообщение:**\n${message.content || "(сообщение без текста)"}`
+      )
+      .setTimestamp()
+      .setFooter({
+        text: "ULSA Volunteer Center"
       });
+
+    await channel.send({
+      embeds: [embed]
+    });
+
+    console.log(
+      `✅ Ответ ${message.author.username} отправлен в канал заявок`
+    );
+
+  } catch (error) {
+    console.error("❌ Ошибка обработки ЛС:", error);
+  }
+});
 
       return;
     }
