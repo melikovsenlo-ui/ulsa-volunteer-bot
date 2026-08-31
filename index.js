@@ -158,22 +158,83 @@ client.on("interactionCreate", async (interaction) => {
 
   if (interaction.isModalSubmit()) {
 
-    if (interaction.customId === "reply_modal") {
+  if (interaction.customId === "reply_modal") {
 
-      const answer = interaction.fields.getTextInputValue("answer");
+    const answer = interaction.fields.getTextInputValue("answer");
+
+    const message = interaction.message;
+
+    if (!message || !message.embeds.length) {
+      await interaction.reply({
+        content: "❌ Не удалось определить заявку.",
+        ephemeral: true
+      });
+      return;
+    }
+
+    const embed = message.embeds[0];
+
+    const discordField = embed.fields?.find(
+      field => field.name === "👤 Discord заявителя"
+    );
+
+    if (!discordField) {
+      await interaction.reply({
+        content: "❌ В заявке не найден Discord username.",
+        ephemeral: true
+      });
+      return;
+    }
+
+    const username = discordField.value
+      .replace("@", "")
+      .trim();
+
+    const guild = interaction.guild;
+
+    const members = await guild.members.fetch();
+
+    const member = members.find(
+      m => m.user.username.toLowerCase() === username.toLowerCase()
+    );
+
+    if (!member) {
+      await interaction.reply({
+        content:
+          `❌ Пользователь **${username}** не найден на сервере ULSA.\n\n` +
+          `Проверьте, что он находится на сервере и указал правильный Discord username.`,
+        ephemeral: true
+      });
+      return;
+    }
+
+    try {
+
+      await member.send({
+        content:
+          `📩 **Ответ от ULSA Volunteer Center**\n\n${answer}`
+      });
 
       await interaction.reply({
         content:
-          `💬 **Ответ подготовлен:**\n\n${answer}\n\n` +
-          `⚠️ Сейчас он отображён здесь. Следующим шагом мы подключим отправку именно заявителю в ЛС.`,
+          `✅ Ответ успешно отправлен пользователю **${member.user.username}** в личные сообщения.`,
         ephemeral: false
       });
 
-      return;
-    }
-  }
-});
+    } catch (error) {
 
+      await interaction.reply({
+        content:
+          `❌ Не удалось отправить ЛС пользователю **${member.user.username}**.\n` +
+          `Возможно, у него закрыты личные сообщения от участников сервера.`,
+        ephemeral: true
+      });
+
+    }
+
+    return;
+  }
+}
 client.once("ready", () => {
   console.log(`Бот запущен: ${client.user.tag}`);
 });
