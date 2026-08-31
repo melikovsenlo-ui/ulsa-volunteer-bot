@@ -113,7 +113,6 @@ app.post("/tally", async (req, res) => {
 });
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
-
   if (!message.channel.isDMBased()) return;
 
   console.log(
@@ -149,6 +148,64 @@ client.on("messageCreate", async (message) => {
 
   } catch (error) {
     console.error("❌ Ошибка обработки ЛС:", error);
+  }
+});
+  client.on("interactionCreate", async (interaction) => {
+      if (interaction.isButton()) {
+
+    if (interaction.customId === "reply") {
+
+      const modal = new ModalBuilder()
+        .setCustomId("reply_modal")
+        .setTitle("Ответ заявителю");
+
+      const answer = new TextInputBuilder()
+        .setCustomId("answer")
+        .setLabel("Ваш ответ")
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder("Введите ответ заявителю...")
+        .setRequired(true)
+        .setMaxLength(2000);
+
+      const row = new ActionRowBuilder()
+        .addComponents(answer);
+
+      modal.addComponents(row);
+
+      await interaction.showModal(modal);
+      return;
+    }
+
+    if (interaction.customId === "accept") {
+      await interaction.reply({
+        content: "✅ Заявка отмечена как принятая."
+      });
+      return;
+    }
+
+    if (interaction.customId === "reject") {
+      await interaction.reply({
+        content: "❌ Заявка отмечена как отклонённая."
+      });
+      return;
+    }
+  }
+
+  if (interaction.isModalSubmit()) {
+
+    if (interaction.customId === "reply_modal") {
+
+      const answer =
+        interaction.fields.getTextInputValue("answer");
+
+      await interaction.reply({
+        content:
+          `💬 **Ответ отправлен:**\n\n${answer}`,
+        ephemeral: false
+      });
+
+      return;
+    }
   }
 });
 
