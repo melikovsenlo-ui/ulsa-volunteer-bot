@@ -2,7 +2,13 @@ const express = require("express");
 const {
   Client,
   GatewayIntentBits,
-  EmbedBuilder
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle
 } = require("discord.js");
 
 const app = express();
@@ -14,29 +20,16 @@ const client = new Client({
   ]
 });
 
-// ==============================
-// НАСТРОЙКИ
-// ==============================
-
-const CHANNEL_ID = process.env.CHANNEL_ID;
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
+const CHANNEL_ID = process.env.CHANNEL_ID;
 
-// ==============================
-// DISCORD
-// ==============================
-
-client.once("ready", () => {
-  console.log(`Бот запущен: ${client.user.tag}`);
+app.get("/", (req, res) => {
+  res.send("ULSA Volunteer Bot работает!");
 });
-
-// ==============================
-// TALLY WEBHOOK
-// ==============================
 
 app.post("/tally", async (req, res) => {
   try {
     const data = req.body;
-
     const channel = await client.channels.fetch(CHANNEL_ID);
 
     if (!channel) {
@@ -45,6 +38,7 @@ app.post("/tally", async (req, res) => {
 
     const fields = data?.data?.fields || [];
 
+    let applicant = "Не указан";
     let description = "";
 
     for (const field of fields) {
@@ -59,50 +53,134 @@ app.post("/tally", async (req, res) => {
         value = "Не указано";
       }
 
-      description += `**${name}:** ${value}\n`;
-    }
+      if (
+        name.toLowerCase().includes("discord")
+      ) {
+        applicant = String(value);
+      }
 
-    if (!description) {
-      description = "Данные заявки не найдены.";
+      description += `**${name}:** ${value}\n`;
     }
 
     const embed = new EmbedBuilder()
       .setTitle("📩 Новая заявка — ULSA Volunteer Center")
       .setDescription(description)
+      .addFields({
+        name: "👤 Discord заявителя",
+        value: applicant
+      })
       .setTimestamp()
       .setFooter({
         text: "ULSA Volunteer Center"
       });
 
-    const message = await channel.send({
-      embeds: [embed]
-    });
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("reply")
+        .setLabel("💬 Ответить")
+        .setStyle(ButtonStyle.Primary),
 
-    // Создаём отдельную ветку для обсуждения заявки
-    await message.startThread({
-      name: "Обсуждение заявки",
-      autoArchiveDuration: 1440
+      new ButtonBuilder()
+        .setCustomId("accept")
+        .setLabel("✅ Принять")
+        .setStyle(ButtonStyle.Success),
+
+      new ButtonBuilder()
+        .setCustomId("reject")
+        .setLabel("❌ Отклонить")
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    await channel.send({
+      embeds: [embed],
+      components: [row]
     });
 
     res.status(200).send("OK");
+
   } catch (error) {
     console.error(error);
     res.status(500).send("Ошибка");
   }
 });
 
-// ==============================
-// WEB SERVER
-// ==============================
+client.on("interactionCreate", async (interaction) => {
 
-app.get("/", (req, res) => {
-  res.send("ULSA Volunteer Bot работает!");
+  if (!interaction.isButton() && !interaction.isModalSubmit()) {
+    return;
+  }
+
+  if (interaction.isButton()) {
+
+    if (interaction.customId === "reply") {
+
+      const modal = new ModalBuilder()
+        .setCustomId("reply_modal")
+        .setTitle("Ответ заявителю");
+
+      const answer = new TextInputBuilder()
+        .setCustomId("answer")
+        .setLabel("Ваш ответ")
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder("Введите ответ заявителю...")
+        .setRequired(true)
+        .setMaxLength(2000);
+
+      const row = new ActionRowBuilder().addComponents(answer);
+
+      modal.addComponents(row);
+
+      await interaction.showModal(modal);
+      return;
+    }
+
+    if (interaction.customId === "accept") {
+
+      await interaction.reply({
+        content: "✅ Заявка отмечена как **принятая**.",
+        ephemeral: false
+      });
+
+      return;
+    }
+
+    if (interaction.customId === "reject") {
+
+      await interaction.reply({
+        content: "❌ Заявка отмечена как **отклонённая**.",
+        ephemeral: false
+      });
+
+      return;
+    }
+  }
+
+  if (interaction.isModalSubmit()) {
+
+    if (interaction.customId === "reply_modal") {
+
+      const answer = interaction.fields.getTextInputValue("answer");
+
+      await interaction.reply({
+        content:
+          `💬 **Ответ подготовлен:**\n\n${answer}\n\n` +
+          `⚠️ Сейчас он отображён здесь. Следующим шагом мы подключим отправку именно заявителю в ЛС.`,
+        ephemeral: false
+      });
+
+      return;
+    }
+  }
+});
+
+client.once("ready", () => {
+  console.log(`Бот запущен: ${client.user.tag}`);
 });
 
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`Web server запущен на порту ${PORT}`);
+  console.log(`Сервер запущен на порту ${PORT}`);
 });
 
 client.login(DISCORD_TOKEN);
