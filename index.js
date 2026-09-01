@@ -1,4 +1,5 @@
 const express = require("express");
+
 const {
   Client,
   GatewayIntentBits,
@@ -21,17 +22,44 @@ const client = new Client({
   ]
 });
 
+// ======================================================
+// НАСТРОЙКИ
+// ======================================================
+
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
-const CHANNEL_ID = process.env.CHANNEL_ID;
+const TALLY_CHANNEL_ID = process.env.CHANNEL_ID;
+
+// Канал 📜・правила
+const RULES_CHANNEL_ID = "1544128560598622279";
+
+// Канал 📝・как-вступить
+const JOIN_CHANNEL_ID = "1544138828300820510";
+
+// Картинка для правил
+const RULES_IMAGE =
+  "https://cdn.discordapp.com/attachments/1544128560598622279/1544132694290464808/image.png?ex=6a976522&is=6a9613a2&hm=859f5cc0dac4b28853834b9a862caf8385fa35ee5023c444aced4bfc255fb7e6&";
+
+// Картинка для «Как вступить»
+const JOIN_IMAGE =
+  "https://cdn.discordapp.com/attachments/1544138828300820510/1544138865214759074/1788221749501-01a05a51-aa0e-771c-a6a9-98c739901b26.png?ex=6a976ae2&is=6a961962&hm=d2d69649eb9bf496b0b1d5b97e7762da5b30a456322d21a733ffcb9acd9ae450&";
+
+// ======================================================
+// WEB SERVER
+// ======================================================
 
 app.get("/", (req, res) => {
   res.send("ULSA Volunteer Bot работает!");
 });
 
+// ======================================================
+// TALLY — ПОЛУЧЕНИЕ ЗАЯВОК
+// ======================================================
+
 app.post("/tally", async (req, res) => {
   try {
     const data = req.body;
-    const channel = await client.channels.fetch(CHANNEL_ID);
+
+    const channel = await client.channels.fetch(TALLY_CHANNEL_ID);
 
     if (!channel) {
       return res.status(500).send("Канал не найден");
@@ -83,6 +111,7 @@ app.post("/tally", async (req, res) => {
       });
 
     const buttons = new ActionRowBuilder().addComponents(
+
       new ButtonBuilder()
         .setCustomId("reply")
         .setLabel("💬 Ответить")
@@ -97,6 +126,7 @@ app.post("/tally", async (req, res) => {
         .setCustomId("reject")
         .setLabel("❌ Отклонить")
         .setStyle(ButtonStyle.Danger)
+
     );
 
     await channel.send({
@@ -107,14 +137,28 @@ app.post("/tally", async (req, res) => {
     res.status(200).send("OK");
 
   } catch (error) {
-    console.error(error);
+
+    console.error("Ошибка Tally:", error);
+
     res.status(500).send("Ошибка");
   }
 });
 
+// ======================================================
+// КНОПКИ И MODAL
+// ======================================================
+
 client.on("interactionCreate", async (interaction) => {
 
+  // ====================================================
+  // КНОПКИ
+  // ====================================================
+
   if (interaction.isButton()) {
+
+    // ----------------------------
+    // ОТВЕТИТЬ
+    // ----------------------------
 
     if (interaction.customId === "reply") {
 
@@ -136,8 +180,13 @@ client.on("interactionCreate", async (interaction) => {
       modal.addComponents(row);
 
       await interaction.showModal(modal);
+
       return;
     }
+
+    // ----------------------------
+    // ПРИНЯТЬ
+    // ----------------------------
 
     if (interaction.customId === "accept") {
 
@@ -147,6 +196,10 @@ client.on("interactionCreate", async (interaction) => {
 
       return;
     }
+
+    // ----------------------------
+    // ОТКЛОНИТЬ
+    // ----------------------------
 
     if (interaction.customId === "reject") {
 
@@ -158,52 +211,82 @@ client.on("interactionCreate", async (interaction) => {
     }
   }
 
+  // ====================================================
+  // MODAL — ОТВЕТ ЗАЯВИТЕЛЮ
+  // ====================================================
+
   if (interaction.isModalSubmit()) {
 
-    if (interaction.customId === "reply_modal") {
+    if (interaction.customId !== "reply_modal") {
+      return;
+    }
 
-      const answer =
-        interaction.fields.getTextInputValue("answer");
+    const answer =
+      interaction.fields.getTextInputValue("answer");
 
-      const message = interaction.message;
+    const message = interaction.message;
 
-      if (!message || !message.embeds.length) {
+    if (!message || !message.embeds.length) {
 
-        await interaction.reply({
-          content: "❌ Не удалось определить заявку.",
-          ephemeral: true
-        });
+      await interaction.reply({
+        content: "❌ Не удалось определить заявку.",
+        ephemeral: true
+      });
 
-        return;
-      }
+      return;
+    }
 
-      const embed = message.embeds[0];
+    const embed = message.embeds[0];
 
-      const discordField = embed.fields?.find(
-        field => field.name === "👤 Discord заявителя"
+    const discordField = embed.fields?.find(
+      field =>
+        field.name === "👤 Discord заявителя"
+    );
+
+    if (!discordField) {
+
+      await interaction.reply({
+        content:
+          "❌ В заявке не найден Discord username.",
+        ephemeral: true
+      });
+
+      return;
+    }
+
+    const username = discordField.value
+      .replace("@", "")
+      .trim();
+
+    const guild = interaction.guild;
+
+    if (!guild) {
+
+      await interaction.reply({
+        content:
+          "❌ Не удалось определить сервер.",
+        ephemeral: true
+      });
+
+      return;
+    }
+
+    try {
+
+      const members = await guild.members.fetch();
+
+      const member = members.find(
+        member =>
+          member.user.username.toLowerCase() ===
+          username.toLowerCase()
       );
 
-      if (!discordField) {
+      if (!member) {
 
         await interaction.reply({
           content:
-            "❌ В заявке не найден Discord username.",
-          ephemeral: true
-        });
-
-        return;
-      }
-
-      const username = discordField.value
-        .replace("@", "")
-        .trim();
-
-      const guild = interaction.guild;
-
-      if (!guild) {
-
-        await interaction.reply({
-          content: "❌ Не удалось определить сервер.",
+            `❌ Пользователь **${username}** не найден на сервере ULSA.\n\n` +
+            `Проверь правильность Discord username.`,
           ephemeral: true
         });
 
@@ -212,127 +295,99 @@ client.on("interactionCreate", async (interaction) => {
 
       try {
 
-        const members = await guild.members.fetch();
-
-        const member = members.find(
-          member =>
-            member.user.username.toLowerCase() ===
-            username.toLowerCase()
-        );
-
-        if (!member) {
-
-          await interaction.reply({
-            content:
-              `❌ Пользователь **${username}** не найден на сервере ULSA.\n\n` +
-              `Проверьте правильность Discord username.`,
-            ephemeral: true
-          });
-
-          return;
-        }
-
-        try {
-
-          await member.send({
-            content:
-              `📩 **Ответ от ULSA Volunteer Center**\n\n${answer}`
-          });
-
-          await interaction.reply({
-            content:
-              `✅ Ответ отправлен пользователю **${member.user.username}** в личные сообщения.`
-          });
-
-        } catch (dmError) {
-
-          await interaction.reply({
-            content:
-              `❌ Не удалось отправить ЛС пользователю **${member.user.username}**.\n` +
-              `Возможно, у него закрыты личные сообщения.`,
-            ephemeral: true
-          });
-        }
-
-      } catch (error) {
-
-        console.error(error);
+        await member.send({
+          content:
+            `📩 **Ответ от ULSA Volunteer Center**\n\n${answer}`
+        });
 
         await interaction.reply({
           content:
-            "❌ Произошла ошибка при поиске пользователя.",
+            `✅ Ответ отправлен пользователю **${member.user.username}** в личные сообщения.`
+        });
+
+      } catch (dmError) {
+
+        console.error("Ошибка отправки ЛС:", dmError);
+
+        await interaction.reply({
+          content:
+            `❌ Не удалось отправить ЛС пользователю **${member.user.username}**.\n` +
+            `Возможно, у него закрыты личные сообщения.`,
           ephemeral: true
         });
       }
 
-      return;
+    } catch (error) {
+
+      console.error("Ошибка поиска пользователя:", error);
+
+      await interaction.reply({
+        content:
+          "❌ Произошла ошибка при поиске пользователя.",
+        ephemeral: true
+      });
     }
   }
 });
 
-client.once("ready", async () => {
-  console.log(`Бот запущен: ${client.user.tag}`);
+// ======================================================
+// ПУБЛИКАЦИЯ ПРАВИЛ И «КАК ВСТУПИТЬ»
+// ======================================================
 
-  const infoChannel = await client.channels.fetch("1544138828300820510");
+client.once("clientReady", async () => {
 
-  if (!infoChannel) {
-    console.log("❌ Канал не найден.");
-    return;
-  }
-
-  const infoEmbed = new EmbedBuilder()
-    .setColor("#2774AE")
-    .setTitle("📋 КАК ВСТУПИТЬ В ULSA VOLUNTEER CENTER")
-    .setDescription(
-      "**ULSA Volunteer Center** открыт для студентов, которые хотят принимать участие в общественной и волонтёрской деятельности университета.\n\n" +
-      "### 🎓 Кто может вступить?\n" +
-      "Участником может стать студент ULSA, готовый соблюдать правила Volunteer Center и ответственно выполнять возложенные обязанности.\n\n" +
-      "### 📝 Как подать заявку?\n" +
-      "1. Ознакомьтесь с правилами Volunteer Center.\n" +
-      "2. Заполните заявку на вступление.\n" +
-      "3. Укажите необходимые контактные и учебные данные.\n" +
-      "4. Дождитесь рассмотрения заявки руководством Volunteer Center.\n\n" +
-      "### 🤝 После принятия\n" +
-      "После одобрения заявки волонтёр получает соответствующую роль и может принимать участие в доступных мероприятиях и инициативах.\n\n" +
-      "### ⚠️ Важно\n" +
-      "Подавая заявку, вы подтверждаете, что ознакомились с правилами ULSA Volunteer Center и согласны их соблюдать."
-    )
-    .setImage("https://cdn.discordapp.com/attachments/1544134320120406057/1544138865214759074/1788221749501-01a05a51-aa0e-771c-a6a9-98c739901b26.png?ex=6a976ae2&is=6a961962&hm=d2d69649eb9bf496b0b1d5b97e7762da5b30a456322d21a733ffcb9acd9ae450&")
-    .setFooter({
-      text: "ULSA Volunteer Center • Volunteer Recruitment"
-    })
-    .setTimestamp();
-
-  try {
-    await infoChannel.send({
-      embeds: [infoEmbed]
-    });
-
-    console.log("📋 Информация «Как вступить» отправлена.");
-  } catch (error) {
-    console.error("❌ Ошибка отправки:", error);
-  }
-});
-  // Проверяем, есть ли уже сообщение от бота с правилами
-  const messages = await rulesChannel.messages.fetch({ limit: 20 });
-
-  const alreadyPosted = messages.some(
-    message =>
-      message.author.id === client.user.id &&
-      message.embeds.some(
-        embed => embed.title === "ULSA VOLUNTEER CENTER"
-      )
+  console.log(
+    `Бот запущен: ${client.user.tag}`
   );
 
-  if (alreadyPosted) {
-    console.log("📑 Правила уже опубликованы.");
-    return;
-  }
+  // ====================================================
+  // ПРАВИЛА
+  // ====================================================
 
-  const rules = [
-    {
-      title: "ULSA VOLUNTEER CENTER",
-      description: `## ПРАВИЛА И ПОЛОЖЕНИЯ ДЛЯ ВОЛОНТЁРОВ
+  try {
+
+    const rulesChannel =
+      await client.channels.fetch(RULES_CHANNEL_ID);
+
+    if (!rulesChannel) {
+
+      console.log(
+        "❌ Канал правил не найден."
+      );
+
+    } else {
+
+      const messages =
+        await rulesChannel.messages.fetch({
+          limit: 20
+        });
+
+      const alreadyPosted =
+        messages.some(
+          message =>
+            message.author.id === client.user.id &&
+            message.embeds.some(
+              embed =>
+                embed.title ===
+                "ULSA VOLUNTEER CENTER"
+            )
+        );
+
+      if (alreadyPosted) {
+
+        console.log(
+          "📑 Правила уже опубликованы."
+        );
+
+      } else {
+
+        const rules = [
+
+          {
+            title:
+              "ULSA VOLUNTEER CENTER",
+
+            description: `## ПРАВИЛА И ПОЛОЖЕНИЯ ДЛЯ ВОЛОНТЁРОВ
 
 ### 1. ОБЩИЕ ПОЛОЖЕНИЯ
 
@@ -354,11 +409,13 @@ ULSA Volunteer Center осуществляет координацию и орг�
 • своевременно сообщать руководителю о невозможности выполнения поручения;
 • незамедлительно сообщать о возникших проблемах, инцидентах и нарушениях;
 • бережно относиться к имуществу университета и Volunteer Center.`
-    },
+          },
 
-    {
-      title: "ULSA VOLUNTEER CENTER • ПРАВИЛА",
-      description: `### 3. ПОВЕДЕНИЕ И ПРОФЕССИОНАЛЬНАЯ ЭТИКА
+          {
+            title:
+              "ULSA VOLUNTEER CENTER • ПРАВИЛА",
+
+            description: `### 3. ПОВЕДЕНИЕ И ПРОФЕССИОНАЛЬНАЯ ЭТИКА
 
 Волонтёр обязан соблюдать нормы уважительного поведения при взаимодействии со студентами, сотрудниками университета, посетителями мероприятий и другими волонтёрами.
 
@@ -381,11 +438,13 @@ ULSA Volunteer Center осуществляет координацию и орг�
 Во время выполнения волонтёрских обязанностей запрещается хранение, употребление или распространение запрещённых веществ.
 
 Курение и использование табачных или никотиновых изделий допускается исключительно в местах, где это разрешено правилами соответствующей территории.`
-    },
+          },
 
-    {
-      title: "ULSA VOLUNTEER CENTER • БЕЗОПАСНОСТЬ",
-      description: `### 5. ТРЕБОВАНИЯ БЕЗОПАСНОСТИ
+          {
+            title:
+              "ULSA VOLUNTEER CENTER • БЕЗОПАСНОСТЬ",
+
+            description: `### 5. ТРЕБОВАНИЯ БЕЗОПАСНОСТИ
 
 Безопасность участников мероприятий является приоритетной обязанностью каждого волонтёра.
 
@@ -407,11 +466,13 @@ ULSA Volunteer Center осуществляет координацию и орг�
 Распространение такой информации без соответствующего разрешения запрещается.
 
 Персональные данные участников мероприятий и других лиц не могут использоваться в личных целях.`
-    },
+          },
 
-    {
-      title: "ULSA VOLUNTEER CENTER • ИМУЩЕСТВО И УЧАСТИЕ",
-      description: `### 7. ИМУЩЕСТВО И РЕСУРСЫ УНИВЕРСИТЕТА
+          {
+            title:
+              "ULSA VOLUNTEER CENTER • ИМУЩЕСТВО И УЧАСТИЕ",
+
+            description: `### 7. ИМУЩЕСТВО И РЕСУРСЫ УНИВЕРСИТЕТА
 
 Имущество, оборудование, помещения, документы и иные ресурсы университета и Volunteer Center должны использоваться исключительно в соответствии с их назначением.
 
@@ -424,11 +485,13 @@ ULSA Volunteer Center осуществляет координацию и орг�
 В случае невозможности присутствия необходимо уведомить руководителя или ответственного организатора в разумный срок.
 
 Систематическое отсутствие без предварительного уведомления может повлечь ограничение возможности участия в последующих мероприятиях.`
-    },
+          },
 
-    {
-      title: "ULSA VOLUNTEER CENTER • ПРЕДСТАВЛЕНИЕ",
-      description: `### 9. ПРЕДСТАВЛЕНИЕ ULSA VOLUNTEER CENTER
+          {
+            title:
+              "ULSA VOLUNTEER CENTER • ПРЕДСТАВЛЕНИЕ",
+
+            description: `### 9. ПРЕДСТАВЛЕНИЕ ULSA VOLUNTEER CENTER
 
 Во время официальных мероприятий волонтёр представляет ULSA Volunteer Center.
 
@@ -450,11 +513,13 @@ ULSA Volunteer Center осуществляет координацию и орг�
 • иных обстоятельствах, препятствующих нормальной работе Volunteer Center.
 
 Обращения рассматриваются руководством Volunteer Center в установленном порядке.`
-    },
+          },
 
-    {
-      title: "ULSA VOLUNTEER CENTER • ОТВЕТСТВЕННОСТЬ",
-      description: `### 11. МЕРЫ ЗА НАРУШЕНИЕ ПРАВИЛ
+          {
+            title:
+              "ULSA VOLUNTEER CENTER • ОТВЕТСТВЕННОСТЬ",
+
+            description: `### 11. МЕРЫ ЗА НАРУШЕНИЕ ПРАВИЛ
 
 В зависимости от характера и тяжести нарушения могут применяться следующие меры:
 
@@ -476,198 +541,195 @@ ULSA Volunteer Center осуществляет координацию и орг�
 
 **ULSA Volunteer Center**
 **Отдел волонтёрской деятельности**`
+          }
+
+        ];
+
+        for (const rule of rules) {
+
+          const embed =
+            new EmbedBuilder()
+              .setColor("#2774AE")
+              .setTitle(rule.title)
+              .setDescription(rule.description)
+              .setImage(RULES_IMAGE)
+              .setFooter({
+                text:
+                  "ULSA Volunteer Center • Volunteer Guidelines"
+              })
+              .setTimestamp();
+
+          await rulesChannel.send({
+            embeds: [embed]
+          });
+        }
+
+        console.log(
+          "📑 Все правила успешно опубликованы."
+        );
+      }
     }
-  ];
 
-for (const rule of rules) {
-  const embed = new EmbedBuilder()
-    .setTitle(rule.title)
-    .setDescription(rule.description)
-    .setImage("https://cdn.discordapp.com/attachments/1544128560598622279/1544132694290464808/image.png?ex=6a976522&is=6a9613a2&hm=859f5cc0dac4b28853834b9a862caf8385fa35ee5023c444aced4bfc255fb7e6&")
-    .setFooter({
-      text: "ULSA Volunteer Center • Volunteer Guidelines"
-    })
-    .setTimestamp();
+  } catch (error) {
 
-  await rulesChannel.send({
-    embeds: [embed]
-  });
-}
-  console.log("📑 Все правила успешно опубликованы.");
-});
-client.once("ready", async () => {
-  const channel = await client.channels.fetch("1544138828300820510");
-
-  const embed = new EmbedBuilder()
-    .setTitle("📝 КАК ВСТУПИТЬ В ULSA VOLUNTEER CENTER")
-    .setDescription(`**ULSA Volunteer Center** открыт для студентов, желающих принимать участие в университетских, общественных и благотворительных мероприятиях.
-
-### 01. ОЗНАКОМЬТЕСЬ С ПРАВИЛАМИ
-
-Перед подачей заявки необходимо ознакомиться с **📜・правилами** Volunteer Center.
-
-Подача заявки означает, что кандидат ознакомился с установленными требованиями и готов их соблюдать.
-
-### 02. ЗАПОЛНИТЕ ЗАЯВКУ
-
-Для вступления необходимо заполнить официальную заявку волонтёра.
-
-В заявке потребуется указать основную информацию о себе, контактные данные, Discord username, курс/факультет, интересующие направления деятельности и доступное время.
-
-**Форма заявки:**
-https://tally.so/r/QKQrDk
-
-### 03. ДОЖДИТЕСЬ РАССМОТРЕНИЯ
-
-После отправки заявки она поступает на рассмотрение руководству **ULSA Volunteer Center**.
-
-При необходимости с кандидатом могут связаться через Discord для уточнения предоставленной информации.
-
-### 04. ПОЛУЧИТЕ РЕШЕНИЕ
-
-После рассмотрения кандидат получает уведомление о результате.
-
-✅ **Заявка одобрена** — кандидат принят в состав Volunteer Center.
-
-⏳ **Требуется дополнительная информация** — необходимо уточнить отдельные данные.
-
-❌ **Заявка отклонена** — кандидат не принят в состав Volunteer Center.
-
-### 05. НАЧНИТЕ ВОЛОНТЁРСКУЮ ДЕЯТЕЛЬНОСТЬ
-
-После принятия волонтёр получает соответствующую роль на сервере и может принимать участие в доступных мероприятиях и проектах.
-
-Информация о новых мероприятиях публикуется в соответствующих каналах сервера.
-
-### 💙 ВАЖНО
-
-Волонтёрская деятельность осуществляется на **добровольной основе**. От участника ожидаются ответственность, соблюдение правил, уважительное отношение к другим участникам и готовность выполнять принятые на себя обязательства.
-
-**🦫 Присоединяйтесь к ULSA Volunteer Center.**`)
-    .setImage("https://cdn.discordapp.com/attachments/1544138828300820510/1544138865214759074/1788221749501-01a05a51-aa0e-771c-a6a9-98c739901b26.png?ex=6a976ae2&is=6a961962&hm=d2d69649eb9bf496b0b1d5b97e7762da5b30a456322d21a733ffcb9acd9ae450&")
-    .setFooter({
-      text: "ULSA Volunteer Center • Volunteer Recruitment"
-    })
-    .setTimestamp();
-
-  await channel.send({
-    embeds: [embed]
-  });
-
-  console.log("📝 Сообщение «Как вступить» отправлено.");
-});
-client.once("ready", async () => {
-  const channel = await client.channels.fetch("1544138828300820510");
-
-  const embed = new EmbedBuilder()
-    .setTitle("📝 КАК ВСТУПИТЬ В ULSA VOLUNTEER CENTER")
-    .setDescription(`**ULSA Volunteer Center** открыт для студентов, желающих принимать участие в университетских, общественных и благотворительных мероприятиях.
-
-### 01. ОЗНАКОМЬТЕСЬ С ПРАВИЛАМИ
-
-Перед подачей заявки необходимо ознакомиться с **📜・правилами** Volunteer Center.
-
-Подача заявки означает, что кандидат ознакомился с установленными требованиями и готов их соблюдать.
-
-### 02. ЗАПОЛНИТЕ ЗАЯВКУ
-
-Для вступления необходимо заполнить официальную заявку волонтёра.
-
-В заявке потребуется указать основную информацию о себе, контактные данные, Discord username, курс/факультет, интересующие направления деятельности и доступное время.
-
-**Форма заявки:**
-https://tally.so/r/QKQrDk
-
-### 03. ДОЖДИТЕСЬ РАССМОТРЕНИЯ
-
-После отправки заявки она поступает на рассмотрение руководству **ULSA Volunteer Center**.
-
-При необходимости с кандидатом могут связаться через Discord для уточнения предоставленной информации.
-
-### 04. ПОЛУЧИТЕ РЕШЕНИЕ
-
-После рассмотрения кандидат получает уведомление о результате.
-
-✅ **Заявка одобрена** — кандидат принят в состав Volunteer Center.
-
-⏳ **Требуется дополнительная информация** — необходимо уточнить отдельные данные.
-
-❌ **Заявка отклонена** — кандидат не принят в состав Volunteer Center.
-
-### 05. НАЧНИТЕ ВОЛОНТЁРСКУЮ ДЕЯТЕЛЬНОСТЬ
-
-После принятия волонтёр получает соответствующую роль на сервере и может принимать участие в доступных мероприятиях и проектах.
-
-Информация о новых мероприятиях публикуется в соответствующих каналах сервера.
-
-### 💙 ВАЖНО
-
-Волонтёрская деятельность осуществляется на **добровольной основе**. От участника ожидаются ответственность, соблюдение правил, уважительное отношение к другим участникам и готовность выполнять принятые на себя обязательства.
-
-**🦫 Присоединяйтесь к ULSA Volunteer Center.**`)
-    .setImage("https://cdn.discordapp.com/attachments/1544138828300820510/1544138865214759074/1788221749501-01a05a51-aa0e-771c-a6a9-98c739901b26.png?ex=6a976ae2&is=6a961962&hm=d2d69649eb9bf496b0b1d5b97e7762da5b30a456322d21a733ffcb9acd9ae450&")
-    .setFooter({
-      text: "ULSA Volunteer Center • Volunteer Recruitment"
-    })
-    .setTimestamp();
-
-  await channel.send({
-    embeds: [embed]
-  });
-
-  console.log("📝 Сообщение «Как вступить» отправлено.");
-});
- client.once("ready", async () => {
-  console.log(`Бот запущен: ${client.user.tag}`);
-
-  const infoChannel = await client.channels.fetch("1544138828300820510");
-
-  if (!infoChannel) {
-    console.log("❌ Канал «Как вступить» не найден.");
-    return;
+    console.error(
+      "❌ Ошибка публикации правил:",
+      error
+    );
   }
 
-  const infoEmbed = new EmbedBuilder()
-    .setColor("#2774AE")
-    .setTitle("📋 КАК ВСТУПИТЬ В ULSA VOLUNTEER CENTER")
-    .setDescription(
-      "**ULSA Volunteer Center** открыт для студентов, которые хотят принимать участие в общественной и волонтёрской деятельности университета.\n\n" +
-      "### 🎓 Кто может вступить?\n" +
-      "Участником может стать студент ULSA, готовый соблюдать правила Volunteer Center и ответственно выполнять возложенные обязанности.\n\n" +
-      "### 📝 Как подать заявку?\n" +
-      "1. Ознакомьтесь с правилами и положениями для волонтёров.\n" +
-      "2. Заполните установленную заявку на вступление.\n" +
-      "3. Укажите свои контактные данные, учебную информацию и доступность.\n" +
-      "4. Дождитесь рассмотрения заявки руководством Volunteer Center.\n\n" +
-      "### 🤝 После принятия\n" +
-      "После одобрения заявки волонтёр получает соответствующую роль на сервере и может принимать участие в доступных волонтёрских мероприятиях и инициативах.\n\n" +
-      "### ⚠️ Важно\n" +
-      "Подавая заявку, вы подтверждаете, что ознакомились с правилами ULSA Volunteer Center и согласны их соблюдать."
-    )
-    .setImage("ВСТАВЬ_ССЫЛКУ_НА_ФОТО")
-    .setFooter({
-      text: "ULSA Volunteer Center • Volunteer Recruitment"
-    })
-    .setTimestamp();
+  // ====================================================
+  // КАК ВСТУПИТЬ
+  // ====================================================
 
   try {
-    await infoChannel.send({
-      embeds: [infoEmbed]
-    });
 
-    console.log("📋 Информация «Как вступить» отправлена.");
+    const joinChannel =
+      await client.channels.fetch(JOIN_CHANNEL_ID);
+
+    if (!joinChannel) {
+
+      console.log(
+        "❌ Канал «Как вступить» не найден."
+      );
+
+    } else {
+
+      const messages =
+        await joinChannel.messages.fetch({
+          limit: 20
+        });
+
+      const alreadyPosted =
+        messages.some(
+          message =>
+            message.author.id === client.user.id &&
+            message.embeds.some(
+              embed =>
+                embed.title ===
+                "📝 КАК ВСТУПИТЬ В ULSA VOLUNTEER CENTER"
+            )
+        );
+
+      if (alreadyPosted) {
+
+        console.log(
+          "📝 Сообщение «Как вступить» уже опубликовано."
+        );
+
+      } else {
+
+        const embed =
+          new EmbedBuilder()
+            .setColor("#2774AE")
+            .setTitle(
+              "📝 КАК ВСТУПИТЬ В ULSA VOLUNTEER CENTER"
+            )
+            .setDescription(`**ULSA Volunteer Center** открыт для студентов, желающих принимать участие в университетских, общественных и благотворительных мероприятиях.
+
+### 01. ОЗНАКОМЬТЕСЬ С ПРАВИЛАМИ
+
+Перед подачей заявки необходимо ознакомиться с **📜・правилами** Volunteer Center.
+
+Подача заявки означает, что кандидат ознакомился с установленными требованиями и готов их соблюдать.
+
+### 02. ЗАПОЛНИТЕ ЗАЯВКУ
+
+Для вступления необходимо заполнить официальную заявку волонтёра.
+
+В заявке потребуется указать основную информацию о себе, контактные данные, Discord username, курс/факультет, интересующие направления деятельности и доступное время.
+
+**Форма заявки:**
+https://tally.so/r/QKQrDk
+
+### 03. ДОЖДИТЕСЬ РАССМОТРЕНИЯ
+
+После отправки заявки она поступает на рассмотрение руководству **ULSA Volunteer Center**.
+
+При необходимости с кандидатом могут связаться через Discord для уточнения предоставленной информации.
+
+### 04. ПОЛУЧИТЕ РЕШЕНИЕ
+
+После рассмотрения кандидат получает уведомление о результате.
+
+✅ **Заявка одобрена** — кандидат принят в состав Volunteer Center.
+
+⏳ **Требуется дополнительная информация** — необходимо уточнить отдельные данные.
+
+❌ **Заявка отклонена** — кандидат не принят в состав Volunteer Center.
+
+### 05. НАЧНИТЕ ВОЛОНТЁРСКУЮ ДЕЯТЕЛЬНОСТЬ
+
+После принятия волонтёр получает соответствующую роль на сервере и может принимать участие в доступных мероприятиях и проектах.
+
+Информация о новых мероприятиях публикуется в соответствующих каналах сервера.
+
+### 💙 ВАЖНО
+
+Волонтёрская деятельность осуществляется на **добровольной основе**. От участника ожидаются ответственность, соблюдение правил, уважительное отношение к другим участникам и готовность выполнять принятые на себя обязательства.
+
+**🦫 Присоединяйтесь к ULSA Volunteer Center.**`)
+            .setImage(JOIN_IMAGE)
+            .setFooter({
+              text:
+                "ULSA Volunteer Center • Volunteer Recruitment"
+            })
+            .setTimestamp();
+
+        await joinChannel.send({
+          embeds: [embed]
+        });
+
+        console.log(
+          "📝 Сообщение «Как вступить» отправлено."
+        );
+      }
+    }
+
   } catch (error) {
-    console.error("❌ Не удалось отправить информацию:", error);
+
+    console.error(
+      "❌ Ошибка публикации «Как вступить»:",
+      error
+    );
   }
 });
-  console.log("📋 Информация отправлена.");
+
+// ======================================================
+// ОБРАБОТКА ОШИБОК
+// ======================================================
+
+client.on("error", error => {
+  console.error(
+    "❌ Discord Client Error:",
+    error
+  );
 });
-const PORT = process.env.PORT || 3000;
+
+process.on("unhandledRejection", error => {
+  console.error(
+    "❌ Unhandled Rejection:",
+    error
+  );
+});
+
+// ======================================================
+// EXPRESS SERVER
+// ======================================================
+
+const PORT =
+  process.env.PORT || 3000;
 
 app.listen(PORT, () => {
+
   console.log(
     `Сервер запущен на порту ${PORT}`
   );
+
 });
+
+// ======================================================
+// DISCORD LOGIN
+// ======================================================
 
 client.login(DISCORD_TOKEN);
