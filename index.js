@@ -61,7 +61,7 @@ const INFO_IMAGE =
 // Сюда нужно поставить ПРЯМУЮ ссылку на картинку
 // из этого альбома.
 const RULES_IMAGE =
-  "https://imgur.com/a/00PKkIu#DK3VchY";
+  "ВСТАВЬ_ПРЯМУЮ_ССЫЛКУ_НА_КАРТИНКУ_ПРАВИЛ";
 
 // 🖼️ КАК ВСТУПИТЬ
 const JOIN_IMAGE =
