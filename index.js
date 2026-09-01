@@ -510,7 +510,7 @@ client.once("ready", async () => {
 ULSA Volunteer Center стремится создать активное университетское сообщество, в котором студенты могут помогать другим, развивать свои навыки, приобретать практический опыт и принимать участие в жизни университета.
 
 **Каждый вклад имеет значение.**`)
-    .setImage("https://cdn.discordapp.com/attachments/1544128560598622279/1544132694290464808/image.png?ex=6a976522&is=6a9613a2&hm=859f5cc0dac4b28853834b9a862caf8385fa35ee5023c444aced4bfc255fb7e6&")
+    .setImage("https://cdn.discordapp.com/attachments/1544134320120406057/1544136397751976087/1788220793888-01a05a43-226f-7898-9b9d-c4ccc917fb67.png?ex=6a976895&is=6a961715&hm=4eb8a4f6aabcf3fc5ff79ede94dd841d9c1776d1c8da6b0374569a90e3ed26f8&")
     .setFooter({
       text: "ULSA Volunteer Center • Volunteer Information"
     });
