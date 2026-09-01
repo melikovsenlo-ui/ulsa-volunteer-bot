@@ -573,7 +573,7 @@ https://tally.so/r/QKQrDk
     embeds: [embed]
   });
 
-  console.log("📝 Информация о вступлении отправлена.");
+  console.log("📝 Сообщение «Как вступить» отправлено.");
 });
   await infoChannel.send({
     embeds: [infoEmbed]
