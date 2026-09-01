@@ -584,10 +584,49 @@ https://tally.so/r/QKQrDk
 
   console.log("📝 Сообщение «Как вступить» отправлено.");
 });
-  await infoChannel.send({
-    embeds: [infoEmbed]
-  });
+ client.once("ready", async () => {
+  console.log(`Бот запущен: ${client.user.tag}`);
 
+  const infoChannel = await client.channels.fetch("1544138828300820510");
+
+  if (!infoChannel) {
+    console.log("❌ Канал «Как вступить» не найден.");
+    return;
+  }
+
+  const infoEmbed = new EmbedBuilder()
+    .setColor("#2774AE")
+    .setTitle("📋 КАК ВСТУПИТЬ В ULSA VOLUNTEER CENTER")
+    .setDescription(
+      "**ULSA Volunteer Center** открыт для студентов, которые хотят принимать участие в общественной и волонтёрской деятельности университета.\n\n" +
+      "### 🎓 Кто может вступить?\n" +
+      "Участником может стать студент ULSA, готовый соблюдать правила Volunteer Center и ответственно выполнять возложенные обязанности.\n\n" +
+      "### 📝 Как подать заявку?\n" +
+      "1. Ознакомьтесь с правилами и положениями для волонтёров.\n" +
+      "2. Заполните установленную заявку на вступление.\n" +
+      "3. Укажите свои контактные данные, учебную информацию и доступность.\n" +
+      "4. Дождитесь рассмотрения заявки руководством Volunteer Center.\n\n" +
+      "### 🤝 После принятия\n" +
+      "После одобрения заявки волонтёр получает соответствующую роль на сервере и может принимать участие в доступных волонтёрских мероприятиях и инициативах.\n\n" +
+      "### ⚠️ Важно\n" +
+      "Подавая заявку, вы подтверждаете, что ознакомились с правилами ULSA Volunteer Center и согласны их соблюдать."
+    )
+    .setImage("ВСТАВЬ_ССЫЛКУ_НА_ФОТО")
+    .setFooter({
+      text: "ULSA Volunteer Center • Volunteer Recruitment"
+    })
+    .setTimestamp();
+
+  try {
+    await infoChannel.send({
+      embeds: [infoEmbed]
+    });
+
+    console.log("📋 Информация «Как вступить» отправлена.");
+  } catch (error) {
+    console.error("❌ Не удалось отправить информацию:", error);
+  }
+});
   console.log("📋 Информация отправлена.");
 });
 const PORT = process.env.PORT || 3000;
