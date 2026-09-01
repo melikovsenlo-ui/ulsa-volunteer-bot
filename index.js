@@ -273,13 +273,46 @@ client.on("interactionCreate", async (interaction) => {
 client.once("ready", async () => {
   console.log(`Бот запущен: ${client.user.tag}`);
 
-  const rulesChannel = await client.channels.fetch("1544128560598622279");
+  const infoChannel = await client.channels.fetch("1544138828300820510");
 
-  if (!rulesChannel) {
-    console.log("❌ Канал с правилами не найден");
+  if (!infoChannel) {
+    console.log("❌ Канал не найден.");
     return;
   }
 
+  const infoEmbed = new EmbedBuilder()
+    .setColor("#2774AE")
+    .setTitle("📋 КАК ВСТУПИТЬ В ULSA VOLUNTEER CENTER")
+    .setDescription(
+      "**ULSA Volunteer Center** открыт для студентов, которые хотят принимать участие в общественной и волонтёрской деятельности университета.\n\n" +
+      "### 🎓 Кто может вступить?\n" +
+      "Участником может стать студент ULSA, готовый соблюдать правила Volunteer Center и ответственно выполнять возложенные обязанности.\n\n" +
+      "### 📝 Как подать заявку?\n" +
+      "1. Ознакомьтесь с правилами Volunteer Center.\n" +
+      "2. Заполните заявку на вступление.\n" +
+      "3. Укажите необходимые контактные и учебные данные.\n" +
+      "4. Дождитесь рассмотрения заявки руководством Volunteer Center.\n\n" +
+      "### 🤝 После принятия\n" +
+      "После одобрения заявки волонтёр получает соответствующую роль и может принимать участие в доступных мероприятиях и инициативах.\n\n" +
+      "### ⚠️ Важно\n" +
+      "Подавая заявку, вы подтверждаете, что ознакомились с правилами ULSA Volunteer Center и согласны их соблюдать."
+    )
+    .setImage("https://cdn.discordapp.com/attachments/1544134320120406057/1544138865214759074/1788221749501-01a05a51-aa0e-771c-a6a9-98c739901b26.png?ex=6a976ae2&is=6a961962&hm=d2d69649eb9bf496b0b1d5b97e7762da5b30a456322d21a733ffcb9acd9ae450&")
+    .setFooter({
+      text: "ULSA Volunteer Center • Volunteer Recruitment"
+    })
+    .setTimestamp();
+
+  try {
+    await infoChannel.send({
+      embeds: [infoEmbed]
+    });
+
+    console.log("📋 Информация «Как вступить» отправлена.");
+  } catch (error) {
+    console.error("❌ Ошибка отправки:", error);
+  }
+});
   // Проверяем, есть ли уже сообщение от бота с правилами
   const messages = await rulesChannel.messages.fetch({ limit: 20 });
 
