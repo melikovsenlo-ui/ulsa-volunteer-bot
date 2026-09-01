@@ -1,3 +1,4 @@
+```js
 const express = require("express");
 
 const {
@@ -16,6 +17,11 @@ const {
 const app = express();
 app.use(express.json());
 
+
+// =====================================================
+// DISCORD CLIENT
+// =====================================================
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -23,659 +29,1069 @@ const client = new Client({
   ]
 });
 
+
+// =====================================================
+// ENV
+// =====================================================
+
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CHANNEL_ID = process.env.CHANNEL_ID;
 
+
 // =====================================================
-// НАСТРОЙКИ ULSA
+// ULSA SETTINGS
 // =====================================================
 
 const GUEST_ROLE_ID = "1544145435755683882";
 const VOLUNTEER_ROLE_ID = "1544127357487550587";
 
-const INFO_CHANNEL_ID = "1544134320120406057";
 const RULES_CHANNEL_ID = "1544128560598622279";
 const JOIN_CHANNEL_ID = "1544138828300820510";
 
-// Картинка для информации / вступления
+
+// =====================================================
+// IMAGES
+// =====================================================
+
 const JOIN_IMAGE =
   "https://cdn.discordapp.com/attachments/1544134320120406057/1544138865214759074/1788221749501-01a05a51-aa0e-771c-a6a9-98c739901b26.png?ex=6a976ae2&is=6a961962&hm=d2d69649eb9bf496b0b1d5b97e7762da5b30a456322d21a733ffcb9acd9ae450&";
 
-// Картинка для правил
 const RULES_IMAGE =
   "https://cdn.discordapp.com/attachments/1544134320120406057/1544136397751976087/1788220793888-01a05a43-226f-7898-9b9d-c4ccc917fb67.png?ex=6a976895&is=6a961715&hm=4eb8a4f6aabcf3fc5ff79ede94dd841d9c1776d1c8da6b0374569a90e3ed26f8&";
+
 
 // =====================================================
 // WEB SERVER
 // =====================================================
 
 app.get("/", (req, res) => {
-  res.send("ULSA Volunteer Bot работает!");
+  res.send("🦫 ULSA Volunteer Bot работает!");
 });
 
+
 // =====================================================
-// TALLY — ПОЛУЧЕНИЕ ЗАЯВКИ
+// TALLY WEBHOOK
 // =====================================================
 
 app.post("/tally", async (req, res) => {
+
   try {
+
     const data = req.body;
 
-    const channel = await client.channels.fetch(CHANNEL_ID);
+    console.log("📩 Получена новая заявка Tally");
+
+    const channel =
+      await client.channels.fetch(CHANNEL_ID);
 
     if (!channel) {
-      return res.status(500).send("Канал не найден");
+
+      console.error("❌ Канал заявок не найден.");
+
+      return res
+        .status(500)
+        .send("Канал не найден");
     }
 
-    const fields = data?.data?.fields || [];
+
+    // -------------------------------------------------
+    // Получаем поля Tally
+    // -------------------------------------------------
+
+    const fields =
+      data?.data?.fields || [];
+
 
     let applicant = "Не указан";
+
     let description = "";
 
-    for (const field of fields) {
-      const name = field.label || field.key || "Поле";
 
-      let value = field.value;
+    // -------------------------------------------------
+    // Обрабатываем поля
+    // -------------------------------------------------
+
+    for (const field of fields) {
+
+      const name =
+        field.label ||
+        field.key ||
+        "Поле";
+
+
+      let value =
+        field.value;
+
 
       if (Array.isArray(value)) {
-        value = value.join(", ");
+
+        value =
+          value.join(", ");
       }
+
 
       if (
         value === null ||
         value === undefined ||
         value === ""
       ) {
-        value = "Не указано";
+
+        value =
+          "Не указано";
       }
 
-      // Ищем Discord username
+
+      // Ищем Discord
       if (
-        name.toLowerCase().includes("discord")
+        name
+          .toLowerCase()
+          .includes("discord")
       ) {
-        applicant = String(value);
+
+        applicant =
+          String(value);
       }
 
-      description += `**${name}:** ${value}\n`;
+
+      description +=
+        `**${name}:** ${value}\n`;
     }
+
 
     if (!description) {
-      description = "Данные заявки не найдены.";
+
+      description =
+        "Данные заявки не найдены.";
     }
 
+
+    // -------------------------------------------------
     // Ограничение Discord Embed
+    // -------------------------------------------------
+
     if (description.length > 4000) {
+
       description =
         description.substring(0, 3900) +
         "\n\n…данные сокращены.";
     }
 
-    const embed = new EmbedBuilder()
-      .setColor("#2774AE")
-      .setTitle("📩 Новая заявка — ULSA Volunteer Center")
-      .setDescription(description)
-      .addFields({
-        name: "👤 Discord заявителя",
-        value: applicant.substring(0, 1024)
-      })
-      .setTimestamp()
-      .setFooter({
-        text: "ULSA Volunteer Center"
-      });
 
-    const buttons = new ActionRowBuilder().addComponents(
+    // -------------------------------------------------
+    // EMBED
+    // -------------------------------------------------
 
-      new ButtonBuilder()
-        .setCustomId("reply")
-        .setLabel("💬 Ответить")
-        .setStyle(ButtonStyle.Primary),
+    const embed =
+      new EmbedBuilder()
+        .setColor("#2774AE")
+        .setTitle(
+          "📩 Новая заявка — ULSA Volunteer Center"
+        )
+        .setDescription(
+          description
+        )
+        .addFields({
+          name:
+            "👤 Discord заявителя",
 
-      new ButtonBuilder()
-        .setCustomId("accept")
-        .setLabel("✅ Принять")
-        .setStyle(ButtonStyle.Success),
+          value:
+            applicant.substring(0, 1024)
+        })
+        .setTimestamp()
+        .setFooter({
+          text:
+            "ULSA Volunteer Center"
+        });
 
-      new ButtonBuilder()
-        .setCustomId("reject")
-        .setLabel("❌ Отклонить")
-        .setStyle(ButtonStyle.Danger)
-    );
+
+    // -------------------------------------------------
+    // BUTTONS
+    // -------------------------------------------------
+
+    const buttons =
+      new ActionRowBuilder()
+        .addComponents(
+
+          new ButtonBuilder()
+            .setCustomId("reply")
+            .setLabel("💬 Ответить")
+            .setStyle(
+              ButtonStyle.Primary
+            ),
+
+          new ButtonBuilder()
+            .setCustomId("accept")
+            .setLabel("✅ Принять")
+            .setStyle(
+              ButtonStyle.Success
+            ),
+
+          new ButtonBuilder()
+            .setCustomId("reject")
+            .setLabel("❌ Отклонить")
+            .setStyle(
+              ButtonStyle.Danger
+            )
+        );
+
+
+    // -------------------------------------------------
+    // SEND APPLICATION
+    // -------------------------------------------------
 
     await channel.send({
-      embeds: [embed],
-      components: [buttons]
+
+      embeds: [
+        embed
+      ],
+
+      components: [
+        buttons
+      ]
+
     });
 
-    res.status(200).send("OK");
+
+    console.log(
+      "✅ Заявка отправлена в Discord."
+    );
+
+
+    res
+      .status(200)
+      .send("OK");
+
 
   } catch (error) {
-    console.error("Ошибка Tally:", error);
 
-    res.status(500).send("Ошибка");
+    console.error(
+      "❌ Ошибка Tally:",
+      error
+    );
+
+    res
+      .status(500)
+      .send("Ошибка");
   }
 });
+
 
 // =====================================================
 // INTERACTIONS
 // =====================================================
 
-client.on("interactionCreate", async (interaction) => {
+client.on(
+  "interactionCreate",
+  async interaction => {
 
-  // ===================================================
-  // КНОПКИ
-  // ===================================================
 
-  if (interaction.isButton()) {
+    // =================================================
+    // BUTTONS
+    // =================================================
 
-    // -------------------------------------------------
-    // ОТВЕТИТЬ
-    // -------------------------------------------------
+    if (interaction.isButton()) {
 
-    if (interaction.customId === "reply") {
 
-      const modal = new ModalBuilder()
-        .setCustomId("reply_modal")
-        .setTitle("Ответ заявителю");
+      // ===============================================
+      // REPLY
+      // ===============================================
 
-      const answer = new TextInputBuilder()
-        .setCustomId("answer")
-        .setLabel("Ваш ответ")
-        .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder(
-          "Введите ответ заявителю..."
-        )
-        .setRequired(true)
-        .setMaxLength(2000);
+      if (
+        interaction.customId ===
+        "reply"
+      ) {
 
-      const row = new ActionRowBuilder()
-        .addComponents(answer);
+        const modal =
+          new ModalBuilder()
+            .setCustomId(
+              "reply_modal"
+            )
+            .setTitle(
+              "Ответ заявителю"
+            );
 
-      modal.addComponents(row);
 
-      await interaction.showModal(modal);
+        const answer =
+          new TextInputBuilder()
+            .setCustomId(
+              "answer"
+            )
+            .setLabel(
+              "Ваш ответ"
+            )
+            .setStyle(
+              TextInputStyle.Paragraph
+            )
+            .setPlaceholder(
+              "Введите ответ заявителю..."
+            )
+            .setRequired(true)
+            .setMaxLength(2000);
 
-      return;
-    }
 
-    // -------------------------------------------------
-    // ПРИНЯТЬ
-    // -------------------------------------------------
+        const row =
+          new ActionRowBuilder()
+            .addComponents(
+              answer
+            );
 
-    if (interaction.customId === "accept") {
 
-      await interaction.deferReply();
-
-      try {
-
-        const message = interaction.message;
-
-        if (
-          !message ||
-          !message.embeds ||
-          !message.embeds.length
-        ) {
-          await interaction.editReply(
-            "❌ Не удалось определить заявку."
-          );
-          return;
-        }
-
-        const embed = message.embeds[0];
-
-        const discordField =
-          embed.fields?.find(
-            field =>
-              field.name ===
-              "👤 Discord заявителя"
-          );
-
-        if (!discordField) {
-          await interaction.editReply(
-            "❌ В заявке не найден Discord username."
-          );
-          return;
-        }
-
-        const username = discordField.value
-          .replace("@", "")
-          .trim();
-
-        const guild = interaction.guild;
-
-        if (!guild) {
-          await interaction.editReply(
-            "❌ Не удалось определить сервер."
-          );
-          return;
-        }
-
-        // Получаем участников сервера
-        const members =
-          await guild.members.fetch();
-
-        const member = members.find(
-          member =>
-            member.user.username.toLowerCase() ===
-              username.toLowerCase() ||
-
-            member.user.tag.toLowerCase() ===
-              username.toLowerCase()
+        modal.addComponents(
+          row
         );
 
-        if (!member) {
 
-          await interaction.editReply(
-            `❌ Пользователь **${username}** не найден на сервере.\n\n` +
-            `Убедись, что в заявке указан правильный Discord username.`
-          );
-
-          return;
-        }
-
-        // Получаем роли
-        const guestRole =
-          guild.roles.cache.get(GUEST_ROLE_ID);
-
-        const volunteerRole =
-          guild.roles.cache.get(VOLUNTEER_ROLE_ID);
-
-        if (!guestRole) {
-          await interaction.editReply(
-            "❌ Роль Guest не найдена."
-          );
-          return;
-        }
-
-        if (!volunteerRole) {
-          await interaction.editReply(
-            "❌ Роль Volunteer не найдена."
-          );
-          return;
-        }
-
-        // Проверяем права бота
-        const botMember =
-          guild.members.me;
-
-        if (!botMember) {
-          await interaction.editReply(
-            "❌ Не удалось определить бота на сервере."
-          );
-          return;
-        }
-
-        if (
-          !botMember.permissions.has(
-            PermissionsBitField.Flags.ManageRoles
-          )
-        ) {
-          await interaction.editReply(
-            "❌ У бота нет права **Управление ролями**."
-          );
-          return;
-        }
-
-        // Проверяем иерархию ролей
-        if (
-          volunteerRole.position >=
-          botMember.roles.highest.position
-        ) {
-          await interaction.editReply(
-            "❌ Бот не может выдать роль Volunteer.\n\n" +
-            "Перемести роль **🤖 ULSA Bot** выше роли **🦫 Volunteer** в настройках ролей Discord."
-          );
-          return;
-        }
-
-        // Выдаём Volunteer
-        await member.roles.add(
-          volunteerRole,
-          "Заявка ULSA Volunteer Center одобрена"
+        await interaction.showModal(
+          modal
         );
 
-        // Убираем Guest
-        if (
-          member.roles.cache.has(
-            GUEST_ROLE_ID
-          )
-        ) {
-          await member.roles.remove(
-            guestRole,
-            "Пользователь принят в ULSA Volunteer Center"
-          );
-        }
-
-        // Пытаемся написать пользователю
-        try {
-
-          await member.send({
-            content:
-              "🦫 **ULSA VOLUNTEER CENTER**\n\n" +
-              "🎉 Поздравляем! Твоя заявка на вступление в **ULSA Volunteer Center** была одобрена.\n\n" +
-              "Тебе выдана роль **🦫 Volunteer**.\n\n" +
-              "Добро пожаловать в команду! 💙"
-          });
-
-        } catch (dmError) {
-
-          console.log(
-            "⚠️ Не удалось отправить ЛС принятому пользователю."
-          );
-        }
-
-        // Меняем кнопки
-        const disabledButtons =
-          new ActionRowBuilder().addComponents(
-
-            new ButtonBuilder()
-              .setCustomId("reply")
-              .setLabel("💬 Ответить")
-              .setStyle(ButtonStyle.Primary)
-              .setDisabled(true),
-
-            new ButtonBuilder()
-              .setCustomId("accept")
-              .setLabel("✅ Принято")
-              .setStyle(ButtonStyle.Success)
-              .setDisabled(true),
-
-            new ButtonBuilder()
-              .setCustomId("reject")
-              .setLabel("❌ Отклонить")
-              .setStyle(ButtonStyle.Danger)
-              .setDisabled(true)
-          );
-
-        await interaction.message.edit({
-          components: [disabledButtons]
-        });
-
-        await interaction.editReply(
-          `✅ **${member.user.username}** принят в ULSA Volunteer Center!\n\n` +
-          `🦫 Выдана роль **Volunteer**.\n` +
-          `👤 Роль **Guest** снята.`
-        );
-
-      } catch (error) {
-
-        console.error(
-          "Ошибка при принятии заявки:",
-          error
-        );
-
-        await interaction.editReply(
-          "❌ Произошла ошибка при принятии заявки.\n\n" +
-          "Проверь консоль Render."
-        );
+        return;
       }
 
-      return;
-    }
 
-    // -------------------------------------------------
-    // ОТКЛОНИТЬ
-    // -------------------------------------------------
+      // ===============================================
+      // ACCEPT
+      // ===============================================
 
-    if (interaction.customId === "reject") {
+      if (
+        interaction.customId ===
+        "accept"
+      ) {
 
-      await interaction.deferReply();
+        await interaction.deferReply();
 
-      try {
 
-        const message = interaction.message;
+        try {
 
-        const embed = message.embeds[0];
+          const message =
+            interaction.message;
 
-        const discordField =
-          embed?.fields?.find(
-            field =>
-              field.name ===
-              "👤 Discord заявителя"
+
+          if (
+            !message ||
+            !message.embeds ||
+            !message.embeds.length
+          ) {
+
+            await interaction.editReply(
+              "❌ Не удалось определить заявку."
+            );
+
+            return;
+          }
+
+
+          const embed =
+            message.embeds[0];
+
+
+          const discordField =
+            embed.fields?.find(
+              field =>
+                field.name ===
+                "👤 Discord заявителя"
+            );
+
+
+          if (!discordField) {
+
+            await interaction.editReply(
+              "❌ В заявке не найден Discord username."
+            );
+
+            return;
+          }
+
+
+          const username =
+            discordField.value
+              .replace("@", "")
+              .trim();
+
+
+          const guild =
+            interaction.guild;
+
+
+          if (!guild) {
+
+            await interaction.editReply(
+              "❌ Не удалось определить сервер."
+            );
+
+            return;
+          }
+
+
+          // ===========================================
+          // FIND MEMBER
+          // ===========================================
+
+          const members =
+            await guild.members.fetch();
+
+
+          const member =
+            members.find(
+              member => {
+
+                const usernameLower =
+                  username.toLowerCase();
+
+
+                return (
+                  member.user.username
+                    .toLowerCase() ===
+                    usernameLower ||
+
+                  member.user.tag
+                    .toLowerCase() ===
+                    usernameLower
+                );
+              }
+            );
+
+
+          if (!member) {
+
+            await interaction.editReply(
+
+              `❌ Пользователь **${username}** не найден на сервере.\n\n` +
+
+              `Убедись, что в заявке указан правильный Discord username.`
+
+            );
+
+            return;
+          }
+
+
+          // ===========================================
+          // ROLES
+          // ===========================================
+
+          const guestRole =
+            guild.roles.cache.get(
+              GUEST_ROLE_ID
+            );
+
+
+          const volunteerRole =
+            guild.roles.cache.get(
+              VOLUNTEER_ROLE_ID
+            );
+
+
+          if (!guestRole) {
+
+            await interaction.editReply(
+              "❌ Роль **Guest** не найдена."
+            );
+
+            return;
+          }
+
+
+          if (!volunteerRole) {
+
+            await interaction.editReply(
+              "❌ Роль **Volunteer** не найдена."
+            );
+
+            return;
+          }
+
+
+          // ===========================================
+          // BOT MEMBER
+          // ===========================================
+
+          const botMember =
+            guild.members.me;
+
+
+          if (!botMember) {
+
+            await interaction.editReply(
+              "❌ Не удалось определить бота."
+            );
+
+            return;
+          }
+
+
+          // ===========================================
+          // MANAGE ROLES
+          // ===========================================
+
+          if (
+            !botMember.permissions.has(
+              PermissionsBitField.Flags.ManageRoles
+            )
+          ) {
+
+            await interaction.editReply(
+
+              "❌ У бота нет права **Управление ролями**."
+
+            );
+
+            return;
+          }
+
+
+          // ===========================================
+          // ROLE HIERARCHY
+          // ===========================================
+
+          if (
+            volunteerRole.position >=
+            botMember.roles.highest.position
+          ) {
+
+            await interaction.editReply(
+
+              "❌ Бот не может выдать роль **Volunteer**.\n\n" +
+
+              "Перемести роль **бота** выше роли **Volunteer** в настройках ролей Discord."
+
+            );
+
+            return;
+          }
+
+
+          // ===========================================
+          // ADD VOLUNTEER
+          // ===========================================
+
+          await member.roles.add(
+
+            volunteerRole,
+
+            "Заявка ULSA Volunteer Center одобрена"
+
           );
 
-        if (!discordField) {
 
-          await interaction.editReply(
-            "❌ Не удалось определить заявителя."
-          );
+          // ===========================================
+          // REMOVE GUEST
+          // ===========================================
 
-          return;
-        }
+          if (
+            member.roles.cache.has(
+              GUEST_ROLE_ID
+            )
+          ) {
 
-        const username = discordField.value
-          .replace("@", "")
-          .trim();
+            await member.roles.remove(
 
-        const guild = interaction.guild;
+              guestRole,
 
-        if (!guild) {
+              "Пользователь принят в ULSA Volunteer Center"
 
-          await interaction.editReply(
-            "❌ Не удалось определить сервер."
-          );
+            );
+          }
 
-          return;
-        }
 
-        const members =
-          await guild.members.fetch();
-
-        const member = members.find(
-          member =>
-            member.user.username.toLowerCase() ===
-              username.toLowerCase() ||
-
-            member.user.tag.toLowerCase() ===
-              username.toLowerCase()
-        );
-
-        // Если нашли пользователя — отправляем ЛС
-        if (member) {
+          // ===========================================
+          // DM
+          // ===========================================
 
           try {
 
             await member.send({
+
               content:
+
                 "🦫 **ULSA VOLUNTEER CENTER**\n\n" +
-                "Спасибо за подачу заявки на вступление в ULSA Volunteer Center.\n\n" +
-                "К сожалению, после рассмотрения заявки было принято решение **отклонить её**.\n\n" +
-                "При необходимости вы можете обратиться к руководству Volunteer Center для получения дополнительной информации."
+
+                "🎉 Поздравляем! Твоя заявка на вступление в **ULSA Volunteer Center** была одобрена.\n\n" +
+
+                "Тебе выдана роль **🦫 Volunteer**.\n\n" +
+
+                "Добро пожаловать в команду! 💙"
+
             });
 
-          } catch (dmError) {
+          } catch {
 
             console.log(
-              "⚠️ Не удалось отправить ЛС отклонённому пользователю."
+              "⚠️ Не удалось отправить ЛС пользователю."
             );
           }
+
+
+          // ===========================================
+          // DISABLE BUTTONS
+          // ===========================================
+
+          const disabledButtons =
+            new ActionRowBuilder()
+              .addComponents(
+
+                new ButtonBuilder()
+                  .setCustomId("reply")
+                  .setLabel("💬 Ответить")
+                  .setStyle(
+                    ButtonStyle.Primary
+                  )
+                  .setDisabled(true),
+
+
+                new ButtonBuilder()
+                  .setCustomId("accept")
+                  .setLabel("✅ Принято")
+                  .setStyle(
+                    ButtonStyle.Success
+                  )
+                  .setDisabled(true),
+
+
+                new ButtonBuilder()
+                  .setCustomId("reject")
+                  .setLabel("❌ Отклонить")
+                  .setStyle(
+                    ButtonStyle.Danger
+                  )
+                  .setDisabled(true)
+
+              );
+
+
+          await interaction.message.edit({
+
+            components: [
+              disabledButtons
+            ]
+
+          });
+
+
+          await interaction.editReply(
+
+            `✅ **${member.user.username}** принят в ULSA Volunteer Center!\n\n` +
+
+            `🦫 Выдана роль **Volunteer**.\n` +
+
+            `👤 Роль **Guest** снята.`
+
+          );
+
+
+        } catch (error) {
+
+          console.error(
+            "❌ Ошибка при принятии заявки:",
+            error
+          );
+
+
+          await interaction.editReply(
+
+            "❌ Произошла ошибка при принятии заявки.\n\n" +
+
+            "Проверь консоль Render."
+
+          );
         }
 
-        // Отключаем кнопки
-        const disabledButtons =
-          new ActionRowBuilder().addComponents(
-
-            new ButtonBuilder()
-              .setCustomId("reply")
-              .setLabel("💬 Ответить")
-              .setStyle(ButtonStyle.Primary)
-              .setDisabled(true),
-
-            new ButtonBuilder()
-              .setCustomId("accept")
-              .setLabel("✅ Принять")
-              .setStyle(ButtonStyle.Success)
-              .setDisabled(true),
-
-            new ButtonBuilder()
-              .setCustomId("reject")
-              .setLabel("❌ Отклонено")
-              .setStyle(ButtonStyle.Danger)
-              .setDisabled(true)
-          );
-
-        await interaction.message.edit({
-          components: [disabledButtons]
-        });
-
-        await interaction.editReply(
-          `❌ Заявка **${username}** отклонена.`
-        );
-
-      } catch (error) {
-
-        console.error(
-          "Ошибка при отклонении:",
-          error
-        );
-
-        await interaction.editReply(
-          "❌ Произошла ошибка при отклонении заявки."
-        );
+        return;
       }
 
-      return;
-    }
-  }
 
-  // ===================================================
-  // MODAL — ОТВЕТ
-  // ===================================================
-
-  if (interaction.isModalSubmit()) {
-
-    if (
-      interaction.customId ===
-      "reply_modal"
-    ) {
-
-      const answer =
-        interaction.fields.getTextInputValue(
-          "answer"
-        );
-
-      const message =
-        interaction.message;
+      // ===============================================
+      // REJECT
+      // ===============================================
 
       if (
-        !message ||
-        !message.embeds.length
+        interaction.customId ===
+        "reject"
       ) {
 
-        await interaction.reply({
-          content:
-            "❌ Не удалось определить заявку.",
-          ephemeral: true
-        });
+        await interaction.deferReply();
 
-        return;
-      }
 
-      const embed =
-        message.embeds[0];
+        try {
 
-      const discordField =
-        embed.fields?.find(
-          field =>
-            field.name ===
-            "👤 Discord заявителя"
-        );
+          const message =
+            interaction.message;
 
-      if (!discordField) {
 
-        await interaction.reply({
-          content:
-            "❌ В заявке не найден Discord username.",
-          ephemeral: true
-        });
+          const embed =
+            message.embeds[0];
 
-        return;
-      }
 
-      const username =
-        discordField.value
-          .replace("@", "")
-          .trim();
+          const discordField =
+            embed?.fields?.find(
 
-      const guild =
-        interaction.guild;
+              field =>
+                field.name ===
+                "👤 Discord заявителя"
 
-      if (!guild) {
+            );
 
-        await interaction.reply({
-          content:
-            "❌ Не удалось определить сервер.",
-          ephemeral: true
-        });
 
-        return;
-      }
+          if (!discordField) {
 
-      try {
+            await interaction.editReply(
+              "❌ Не удалось определить заявителя."
+            );
 
-        const members =
-          await guild.members.fetch();
+            return;
+          }
 
-        const member =
-          members.find(
-            member =>
-              member.user.username.toLowerCase() ===
-                username.toLowerCase() ||
 
-              member.user.tag.toLowerCase() ===
-                username.toLowerCase()
+          const username =
+            discordField.value
+              .replace("@", "")
+              .trim();
+
+
+          const guild =
+            interaction.guild;
+
+
+          if (!guild) {
+
+            await interaction.editReply(
+              "❌ Не удалось определить сервер."
+            );
+
+            return;
+          }
+
+
+          const members =
+            await guild.members.fetch();
+
+
+          const member =
+            members.find(
+              member => {
+
+                const usernameLower =
+                  username.toLowerCase();
+
+
+                return (
+                  member.user.username
+                    .toLowerCase() ===
+                    usernameLower ||
+
+                  member.user.tag
+                    .toLowerCase() ===
+                    usernameLower
+                );
+              }
+            );
+
+
+          // ===========================================
+          // SEND REJECTION DM
+          // ===========================================
+
+          if (member) {
+
+            try {
+
+              await member.send({
+
+                content:
+
+                  "🦫 **ULSA VOLUNTEER CENTER**\n\n" +
+
+                  "Спасибо за подачу заявки на вступление в ULSA Volunteer Center.\n\n" +
+
+                  "К сожалению, после рассмотрения заявки было принято решение **отклонить её**.\n\n" +
+
+                  "При необходимости вы можете обратиться к руководству Volunteer Center для получения дополнительной информации."
+
+              });
+
+            } catch {
+
+              console.log(
+                "⚠️ Не удалось отправить ЛС."
+              );
+            }
+          }
+
+
+          // ===========================================
+          // DISABLE BUTTONS
+          // ===========================================
+
+          const disabledButtons =
+            new ActionRowBuilder()
+              .addComponents(
+
+                new ButtonBuilder()
+                  .setCustomId("reply")
+                  .setLabel("💬 Ответить")
+                  .setStyle(
+                    ButtonStyle.Primary
+                  )
+                  .setDisabled(true),
+
+
+                new ButtonBuilder()
+                  .setCustomId("accept")
+                  .setLabel("✅ Принять")
+                  .setStyle(
+                    ButtonStyle.Success
+                  )
+                  .setDisabled(true),
+
+
+                new ButtonBuilder()
+                  .setCustomId("reject")
+                  .setLabel("❌ Отклонено")
+                  .setStyle(
+                    ButtonStyle.Danger
+                  )
+                  .setDisabled(true)
+
+              );
+
+
+          await interaction.message.edit({
+
+            components: [
+              disabledButtons
+            ]
+
+          });
+
+
+          await interaction.editReply(
+
+            `❌ Заявка **${username}** отклонена.`
+
           );
 
-        if (!member) {
+
+        } catch (error) {
+
+          console.error(
+            "❌ Ошибка при отклонении:",
+            error
+          );
+
+
+          await interaction.editReply(
+
+            "❌ Произошла ошибка при отклонении заявки."
+
+          );
+        }
+
+        return;
+      }
+    }
+
+
+    // =================================================
+    // MODAL
+    // =================================================
+
+    if (
+      interaction.isModalSubmit()
+    ) {
+
+
+      if (
+        interaction.customId ===
+        "reply_modal"
+      ) {
+
+        const answer =
+          interaction.fields.getTextInputValue(
+            "answer"
+          );
+
+
+        const message =
+          interaction.message;
+
+
+        if (
+          !message ||
+          !message.embeds.length
+        ) {
 
           await interaction.reply({
+
             content:
-              `❌ Пользователь **${username}** не найден на сервере.`,
+              "❌ Не удалось определить заявку.",
+
             ephemeral: true
+
           });
 
           return;
         }
 
+
+        const embed =
+          message.embeds[0];
+
+
+        const discordField =
+          embed.fields?.find(
+
+            field =>
+              field.name ===
+              "👤 Discord заявителя"
+
+          );
+
+
+        if (!discordField) {
+
+          await interaction.reply({
+
+            content:
+              "❌ В заявке не найден Discord username.",
+
+            ephemeral: true
+
+          });
+
+          return;
+        }
+
+
+        const username =
+          discordField.value
+            .replace("@", "")
+            .trim();
+
+
+        const guild =
+          interaction.guild;
+
+
+        if (!guild) {
+
+          await interaction.reply({
+
+            content:
+              "❌ Не удалось определить сервер.",
+
+            ephemeral: true
+
+          });
+
+          return;
+        }
+
+
         try {
 
-          await member.send({
-            content:
-              `📩 **Ответ от ULSA Volunteer Center**\n\n${answer}`
-          });
+          const members =
+            await guild.members.fetch();
+
+
+          const member =
+            members.find(
+              member => {
+
+                const usernameLower =
+                  username.toLowerCase();
+
+
+                return (
+                  member.user.username
+                    .toLowerCase() ===
+                    usernameLower ||
+
+                  member.user.tag
+                    .toLowerCase() ===
+                    usernameLower
+                );
+              }
+            );
+
+
+          if (!member) {
+
+            await interaction.reply({
+
+              content:
+                `❌ Пользователь **${username}** не найден на сервере.`,
+
+              ephemeral: true
+
+            });
+
+            return;
+          }
+
+
+          try {
+
+            await member.send({
+
+              content:
+
+                `📩 **Ответ от ULSA Volunteer Center**\n\n${answer}`
+
+            });
+
+
+            await interaction.reply({
+
+              content:
+
+                `✅ Ответ отправлен пользователю **${member.user.username}** в личные сообщения.`
+
+            });
+
+
+          } catch {
+
+            await interaction.reply({
+
+              content:
+
+                `❌ Не удалось отправить ЛС пользователю **${member.user.username}**.\n` +
+
+                `Возможно, у него закрыты личные сообщения.`,
+
+              ephemeral: true
+
+            });
+          }
+
+
+        } catch (error) {
+
+          console.error(
+            "❌ Ошибка поиска пользователя:",
+            error
+          );
+
 
           await interaction.reply({
-            content:
-              `✅ Ответ отправлен пользователю **${member.user.username}** в личные сообщения.`
-          });
 
-        } catch (dmError) {
-
-          await interaction.reply({
             content:
-              `❌ Не удалось отправить ЛС пользователю **${member.user.username}**.\n` +
-              `Возможно, у него закрыты личные сообщения.`,
+              "❌ Произошла ошибка при поиске пользователя.",
+
             ephemeral: true
+
           });
         }
 
-      } catch (error) {
-
-        console.error(error);
-
-        await interaction.reply({
-          content:
-            "❌ Произошла ошибка при поиске пользователя.",
-          ephemeral: true
-        });
+        return;
       }
-
-      return;
     }
   }
-});
+);
+
 
 // =====================================================
-// ПОКАЗ "КАК ВСТУПИТЬ"
+// JOIN INFORMATION
 // =====================================================
 
 async function postJoinInformation() {
@@ -685,31 +1101,47 @@ async function postJoinInformation() {
       JOIN_CHANNEL_ID
     );
 
+
   if (!channel) {
+
     console.log(
       "❌ Канал «Как вступить» не найден."
     );
+
     return;
   }
 
-  // Проверяем, есть ли уже сообщение
+
+  // Проверяем последние сообщения,
+  // чтобы бот не спамил при каждом запуске.
+
   const messages =
     await channel.messages.fetch({
+
       limit: 20
+
     });
+
 
   const alreadyPosted =
     messages.some(
+
       message =>
+
         message.author.id ===
           client.user.id &&
 
         message.embeds.some(
+
           embed =>
+
             embed.title ===
             "📝 КАК ВСТУПИТЬ В ULSA VOLUNTEER CENTER"
+
         )
+
     );
+
 
   if (alreadyPosted) {
 
@@ -720,18 +1152,23 @@ async function postJoinInformation() {
     return;
   }
 
+
   const embed =
     new EmbedBuilder()
+
       .setColor("#2774AE")
+
       .setTitle(
         "📝 КАК ВСТУПИТЬ В ULSA VOLUNTEER CENTER"
       )
+
       .setDescription(
+
         "**ULSA Volunteer Center** открыт для студентов, желающих принимать участие в университетских, общественных и благотворительных мероприятиях.\n\n" +
 
         "### 01. ОЗНАКОМЬТЕСЬ С ПРАВИЛАМИ\n\n" +
 
-        `Перед подачей заявки необходимо ознакомиться с <#${RULES_CHANNEL_ID}> Volunteer Center.\n\n` +
+        `Перед подачей заявки необходимо ознакомиться с <#${RULES_CHANNEL_ID}>.\n\n` +
 
         "Подача заявки означает, что кандидат ознакомился с установленными требованиями и готов их соблюдать.\n\n" +
 
@@ -742,6 +1179,7 @@ async function postJoinInformation() {
         "В заявке потребуется указать основную информацию о себе, контактные данные, Discord username, курс/факультет, интересующие направления деятельности и доступное время.\n\n" +
 
         "**Форма заявки:**\n" +
+
         "https://tally.so/r/QKQrDk\n\n" +
 
         "### 03. ДОЖДИТЕСЬ РАССМОТРЕНИЯ\n\n" +
@@ -769,25 +1207,40 @@ async function postJoinInformation() {
         "Волонтёрская деятельность осуществляется на **добровольной основе**. От участника ожидаются ответственность, соблюдение правил, уважительное отношение к другим участникам и готовность выполнять принятые на себя обязательства.\n\n" +
 
         "**🦫 Присоединяйтесь к ULSA Volunteer Center.**"
+
       )
-      .setImage(JOIN_IMAGE)
+
+      .setImage(
+        JOIN_IMAGE
+      )
+
       .setFooter({
+
         text:
           "ULSA Volunteer Center • Volunteer Recruitment"
+
       })
+
       .setTimestamp();
 
+
   await channel.send({
-    embeds: [embed]
+
+    embeds: [
+      embed
+    ]
+
   });
 
+
   console.log(
-    "📝 Сообщение «Как вступить» отправлено."
+    "📝 Сообщение «Как вступить» опубликовано."
   );
 }
 
+
 // =====================================================
-// ПРАВИЛА
+// RULES
 // =====================================================
 
 async function postRules() {
@@ -796,6 +1249,7 @@ async function postRules() {
     await client.channels.fetch(
       RULES_CHANNEL_ID
     );
+
 
   if (!channel) {
 
@@ -806,23 +1260,34 @@ async function postRules() {
     return;
   }
 
+
   const messages =
     await channel.messages.fetch({
+
       limit: 20
+
     });
+
 
   const alreadyPosted =
     messages.some(
+
       message =>
+
         message.author.id ===
           client.user.id &&
 
         message.embeds.some(
+
           embed =>
+
             embed.title ===
             "ULSA VOLUNTEER CENTER"
+
         )
+
     );
+
 
   if (alreadyPosted) {
 
@@ -833,13 +1298,16 @@ async function postRules() {
     return;
   }
 
+
   const rules = [
 
     {
+
       title:
         "ULSA VOLUNTEER CENTER",
 
       description:
+
 `## ПРАВИЛА И ПОЛОЖЕНИЯ ДЛЯ ВОЛОНТЁРОВ
 
 ### 1. ОБЩИЕ ПОЛОЖЕНИЯ
@@ -862,13 +1330,17 @@ ULSA Volunteer Center осуществляет координацию и орг�
 • своевременно сообщать руководителю о невозможности выполнения поручения;
 • незамедлительно сообщать о возникших проблемах, инцидентах и нарушениях;
 • бережно относиться к имуществу университета и Volunteer Center.`
+
     },
 
+
     {
+
       title:
         "ULSA VOLUNTEER CENTER • ПРАВИЛА",
 
       description:
+
 `### 3. ПОВЕДЕНИЕ И ПРОФЕССИОНАЛЬНАЯ ЭТИКА
 
 Волонтёр обязан соблюдать нормы уважительного поведения при взаимодействии со студентами, сотрудниками университета, посетителями мероприятий и другими волонтёрами.
@@ -892,13 +1364,17 @@ ULSA Volunteer Center осуществляет координацию и орг�
 Во время выполнения волонтёрских обязанностей запрещается хранение, употребление или распространение запрещённых веществ.
 
 Курение и использование табачных или никотиновых изделий допускается исключительно в местах, где это разрешено правилами соответствующей территории.`
+
     },
 
+
     {
+
       title:
         "ULSA VOLUNTEER CENTER • БЕЗОПАСНОСТЬ",
 
       description:
+
 `### 5. ТРЕБОВАНИЯ БЕЗОПАСНОСТИ
 
 Безопасность участников мероприятий является приоритетной обязанностью каждого волонтёра.
@@ -921,13 +1397,17 @@ ULSA Volunteer Center осуществляет координацию и орг�
 Распространение такой информации без соответствующего разрешения запрещается.
 
 Персональные данные участников мероприятий и других лиц не могут использоваться в личных целях.`
+
     },
 
+
     {
+
       title:
         "ULSA VOLUNTEER CENTER • ИМУЩЕСТВО И УЧАСТИЕ",
 
       description:
+
 `### 7. ИМУЩЕСТВО И РЕСУРСЫ УНИВЕРСИТЕТА
 
 Имущество, оборудование, помещения, документы и иные ресурсы университета и Volunteer Center должны использоваться исключительно в соответствии с их назначением.
@@ -941,13 +1421,17 @@ ULSA Volunteer Center осуществляет координацию и орг�
 В случае невозможности присутствия необходимо уведомить руководителя или ответственного организатора в разумный срок.
 
 Систематическое отсутствие без предварительного уведомления может повлечь ограничение возможности участия в последующих мероприятиях.`
+
     },
 
+
     {
+
       title:
         "ULSA VOLUNTEER CENTER • ПРЕДСТАВЛЕНИЕ",
 
       description:
+
 `### 9. ПРЕДСТАВЛЕНИЕ ULSA VOLUNTEER CENTER
 
 Во время официальных мероприятий волонтёр представляет ULSA Volunteer Center.
@@ -970,13 +1454,17 @@ ULSA Volunteer Center осуществляет координацию и орг�
 • иных обстоятельствах, препятствующих нормальной работе Volunteer Center.
 
 Обращения рассматриваются руководством Volunteer Center в установленном порядке.`
+
     },
 
+
     {
+
       title:
         "ULSA VOLUNTEER CENTER • ОТВЕТСТВЕННОСТЬ",
 
       description:
+
 `### 11. МЕРЫ ЗА НАРУШЕНИЕ ПРАВИЛ
 
 В зависимости от характера и тяжести нарушения могут применяться следующие меры:
@@ -999,86 +1487,141 @@ ULSA Volunteer Center осуществляет координацию и орг�
 
 **ULSA Volunteer Center**
 **Отдел волонтёрской деятельности**`
+
     }
+
   ];
+
 
   for (const rule of rules) {
 
     const embed =
       new EmbedBuilder()
+
         .setColor("#2774AE")
-        .setTitle(rule.title)
-        .setDescription(rule.description)
-        .setImage(RULES_IMAGE)
+
+        .setTitle(
+          rule.title
+        )
+
+        .setDescription(
+          rule.description
+        )
+
+        .setImage(
+          RULES_IMAGE
+        )
+
         .setFooter({
+
           text:
             "ULSA Volunteer Center • Volunteer Guidelines"
+
         })
+
         .setTimestamp();
 
+
     await channel.send({
-      embeds: [embed]
+
+      embeds: [
+        embed
+      ]
+
     });
+
   }
+
 
   console.log(
     "📑 Все правила успешно опубликованы."
   );
 }
 
+
 // =====================================================
 // READY
 // =====================================================
 
-client.once("clientReady", async () => {
+client.once(
+  "clientReady",
+  async () => {
 
-  console.log(
-    `Бот запущен: ${client.user.tag}`
-  );
+    console.log(
+      `🦫 Бот запущен: ${client.user.tag}`
+    );
 
-  try {
 
-    await postJoinInformation();
+    try {
 
-    await postRules();
+      await postJoinInformation();
 
-  } catch (error) {
+      await postRules();
+
+
+      console.log(
+        "✅ ULSA Volunteer Bot полностью готов."
+      );
+
+
+    } catch (error) {
+
+      console.error(
+
+        "❌ Ошибка при запуске:",
+
+        error
+
+      );
+
+    }
+
+  }
+);
+
+
+// =====================================================
+// ERRORS
+// =====================================================
+
+client.on(
+  "error",
+  error => {
 
     console.error(
-      "❌ Ошибка при публикации информации:",
+      "❌ Discord Client Error:",
       error
     );
+
   }
-});
+);
+
 
 // =====================================================
-// ОБРАБОТКА ОШИБОК
-// =====================================================
-
-client.on("error", error => {
-
-  console.error(
-    "❌ Discord Client Error:",
-    error
-  );
-});
-
-// =====================================================
-// SERVER
+// WEB SERVER
 // =====================================================
 
 const PORT =
   process.env.PORT || 3000;
 
-app.listen(PORT, () => {
 
-  console.log(
-    `Сервер запущен на порту ${PORT}`
-  );
-});
+app.listen(
+  PORT,
+  () => {
+
+    console.log(
+      `🌐 Сервер запущен на порту ${PORT}`
+    );
+
+  }
+);
+
 
 // =====================================================
 // LOGIN
 // =====================================================
 
-client.login(DISCORD_TOKEN);
+client.login(
+  DISCORD_TOKEN
+);
+```
