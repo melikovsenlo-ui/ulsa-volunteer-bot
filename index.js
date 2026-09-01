@@ -1,4 +1,3 @@
-```js
 const express = require("express");
 
 const {
@@ -10,12 +9,15 @@ const {
   ButtonStyle,
   ModalBuilder,
   TextInputBuilder,
-  TextInputStyle,
-  PermissionsBitField
+  TextInputStyle
 } = require("discord.js");
 
 const app = express();
 app.use(express.json());
+
+// =====================================================
+// DISCORD CLIENT
+// =====================================================
 
 const client = new Client({
   intents: [
@@ -24,23 +26,23 @@ const client = new Client({
   ]
 });
 
+// =====================================================
+// ENV
+// =====================================================
+
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 
-// =====================================================
-// НАСТРОЙКИ КАНАЛОВ
-// =====================================================
-
-// Канал, куда приходят заявки Tally
+// Канал, куда Tally отправляет заявки
 const APPLICATIONS_CHANNEL_ID = process.env.CHANNEL_ID;
 
 // Канал «Как вступить»
 const JOIN_CHANNEL_ID = "1544138828300820510";
 
-// Канал с правилами
+// Канал правил
 const RULES_CHANNEL_ID = "1544128560598622279";
 
 // =====================================================
-// НАСТРОЙКИ
+// IMAGES
 // =====================================================
 
 const JOIN_IMAGE =
@@ -63,29 +65,40 @@ app.get("/", (req, res) => {
 
 app.post("/tally", async (req, res) => {
   try {
-    // Сначала сразу отвечаем Tally,
-    // чтобы webhook не получил timeout.
+    // Сразу отвечаем Tally
     res.status(200).send("OK");
 
     const payload = req.body;
 
-    console.log("📩 Получена новая заявка Tally:");
+    console.log("=================================");
+    console.log("📩 НОВАЯ ЗАЯВКА TALLY");
+    console.log("=================================");
     console.log(JSON.stringify(payload, null, 2));
+
+    if (!APPLICATIONS_CHANNEL_ID) {
+      console.error(
+        "❌ CHANNEL_ID не установлен в переменных окружения."
+      );
+      return;
+    }
 
     const channel = await client.channels.fetch(
       APPLICATIONS_CHANNEL_ID
     );
 
     if (!channel) {
-      console.error("❌ Канал заявок не найден.");
+      console.error(
+        "❌ Канал заявок не найден."
+      );
       return;
     }
 
-    // -------------------------------------------------
-    // Данные заявки
-    // -------------------------------------------------
+    // =================================================
+    // TALLY DATA
+    // =================================================
 
     const data = payload?.data || {};
+
     const fields = Array.isArray(data.fields)
       ? data.fields
       : [];
@@ -109,16 +122,15 @@ app.post("/tally", async (req, res) => {
     const pdfUrl =
       data.submissionPdfUrl || null;
 
-    // -------------------------------------------------
-    // Получаем ответы
-    // -------------------------------------------------
+    // =================================================
+    // ANSWERS
+    // =================================================
 
     let applicant = "Не указан";
 
     const answerLines = [];
 
     for (const field of fields) {
-
       const label =
         field.label ||
         field.key ||
@@ -126,88 +138,67 @@ app.post("/tally", async (req, res) => {
 
       let value = field.value;
 
-      // Массивы
+      // -----------------------------
+      // ARRAY
+      // -----------------------------
+
       if (Array.isArray(value)) {
+        value = value
+          .map(item => {
 
-        // Multiple choice / checkboxes
-        if (
-          field.options &&
-          Array.isArray(field.options)
-        ) {
+            if (
+              typeof item === "object" &&
+              item !== null
+            ) {
+              return (
+                item.text ||
+                item.name ||
+                item.label ||
+                item.value ||
+                item.url ||
+                JSON.stringify(item)
+              );
+            }
 
-          value = value
-            .map(id => {
-
-              const option =
-                field.options.find(
-                  option => option.id === id
-                );
-
-              return option
-                ? option.text
-                : id;
-
-            })
-            .join(", ");
-
-        } else {
-
-          // Обычный массив
-          value = value
-            .map(item => {
-
-              if (
-                typeof item === "object" &&
-                item !== null
-              ) {
-
-                return (
-                  item.name ||
-                  item.text ||
-                  item.url ||
-                  JSON.stringify(item)
-                );
-
-              }
-
-              return String(item);
-
-            })
-            .join(", ");
-        }
+            return String(item);
+          })
+          .join(", ");
       }
 
-      // Объекты
+      // -----------------------------
+      // OBJECT
+      // -----------------------------
+
       if (
         typeof value === "object" &&
         value !== null
       ) {
-
         value = JSON.stringify(value);
       }
 
-      // Пустые значения
+      // -----------------------------
+      // EMPTY
+      // -----------------------------
+
       if (
         value === null ||
         value === undefined ||
         value === ""
       ) {
-
         value = "Не указано";
       }
 
       const labelLower =
         String(label).toLowerCase();
 
-      // -------------------------------------------------
-      // Поиск Discord
-      // -------------------------------------------------
+      // =================================================
+      // FIND DISCORD
+      // =================================================
 
       if (
         labelLower.includes("discord") ||
         labelLower.includes("дискорд")
       ) {
-
         applicant = String(value);
       }
 
@@ -216,53 +207,28 @@ app.post("/tally", async (req, res) => {
       );
     }
 
-    // -------------------------------------------------
-    // Если Discord не найден
-    // -------------------------------------------------
-
-    if (applicant === "Не указан") {
-
-      // Попробуем найти значение среди полей
-      // по ключу
-      for (const field of fields) {
-
-        const key =
-          String(field.key || "").toLowerCase();
-
-        if (key.includes("discord")) {
-
-          applicant =
-            String(field.value || "Не указан");
-
-          break;
-        }
-      }
-    }
-
-    // -------------------------------------------------
-    // Ограничение Discord Embed
-    // -------------------------------------------------
+    // =================================================
+    // DESCRIPTION
+    // =================================================
 
     let description =
       answerLines.join("\n\n");
 
     if (!description) {
-
       description =
         "Ответы заявки не найдены.";
     }
 
-    // Discord Embed description максимум 4096 символов
+    // Discord limit
     if (description.length > 3900) {
-
       description =
         description.substring(0, 3900) +
         "\n\n…";
     }
 
-    // -------------------------------------------------
-    // Основной Embed
-    // -------------------------------------------------
+    // =================================================
+    // EMBED
+    // =================================================
 
     const embed =
       new EmbedBuilder()
@@ -274,17 +240,23 @@ app.post("/tally", async (req, res) => {
         .addFields(
           {
             name: "👤 Discord заявителя",
-            value: applicant.substring(0, 1024)
+            value:
+              String(applicant).substring(0, 1024)
           },
           {
             name: "🆔 ID заявки",
-            value: String(submissionId)
-              .substring(0, 1024)
+            value:
+              String(submissionId).substring(0, 1024)
           },
           {
             name: "📋 Форма",
-            value: String(formName)
-              .substring(0, 1024)
+            value:
+              String(formName).substring(0, 1024)
+          },
+          {
+            name: "🔗 Respondent ID",
+            value:
+              String(respondentId).substring(0, 1024)
           }
         )
         .setFooter({
@@ -293,16 +265,18 @@ app.post("/tally", async (req, res) => {
         })
         .setTimestamp();
 
-    // -------------------------------------------------
-    // Кнопки
-    // -------------------------------------------------
+    // =================================================
+    // BUTTONS
+    // =================================================
 
-    const buttons =
+    const rows = [];
+
+    const mainRow =
       new ActionRowBuilder();
 
+    // Открыть заявку
     if (previewUrl) {
-
-      buttons.addComponents(
+      mainRow.addComponents(
         new ButtonBuilder()
           .setLabel("📄 Открыть заявку")
           .setStyle(ButtonStyle.Link)
@@ -310,9 +284,9 @@ app.post("/tally", async (req, res) => {
       );
     }
 
+    // PDF
     if (pdfUrl) {
-
-      buttons.addComponents(
+      mainRow.addComponents(
         new ButtonBuilder()
           .setLabel("📥 PDF")
           .setStyle(ButtonStyle.Link)
@@ -320,30 +294,40 @@ app.post("/tally", async (req, res) => {
       );
     }
 
-    buttons.addComponents(
-      new ButtonBuilder()
-        .setCustomId("reply")
-        .setLabel("💬 Ответить")
-        .setStyle(ButtonStyle.Primary),
+    // Если есть хотя бы одна ссылка
+    if (mainRow.components.length > 0) {
+      rows.push(mainRow);
+    }
 
-      new ButtonBuilder()
-        .setCustomId("accept")
-        .setLabel("✅ Принять")
-        .setStyle(ButtonStyle.Success),
+    // Кнопки обработки
+    const actionRow =
+      new ActionRowBuilder().addComponents(
 
-      new ButtonBuilder()
-        .setCustomId("reject")
-        .setLabel("❌ Отклонить")
-        .setStyle(ButtonStyle.Danger)
-    );
+        new ButtonBuilder()
+          .setCustomId("reply")
+          .setLabel("💬 Ответить")
+          .setStyle(ButtonStyle.Primary),
 
-    // -------------------------------------------------
-    // Отправляем заявку
-    // -------------------------------------------------
+        new ButtonBuilder()
+          .setCustomId("accept")
+          .setLabel("✅ Принять")
+          .setStyle(ButtonStyle.Success),
+
+        new ButtonBuilder()
+          .setCustomId("reject")
+          .setLabel("❌ Отклонить")
+          .setStyle(ButtonStyle.Danger)
+      );
+
+    rows.push(actionRow);
+
+    // =================================================
+    // SEND
+    // =================================================
 
     await channel.send({
       embeds: [embed],
-      components: [buttons]
+      components: rows
     });
 
     console.log(
@@ -373,13 +357,11 @@ client.on(
 
     if (interaction.isButton()) {
 
-      // -------------------------------------------------
-      // Ответить
-      // -------------------------------------------------
+      // ===============================================
+      // REPLY
+      // ===============================================
 
-      if (
-        interaction.customId === "reply"
-      ) {
+      if (interaction.customId === "reply") {
 
         const modal =
           new ModalBuilder()
@@ -390,9 +372,7 @@ client.on(
           new TextInputBuilder()
             .setCustomId("answer")
             .setLabel("Ваш ответ")
-            .setStyle(
-              TextInputStyle.Paragraph
-            )
+            .setStyle(TextInputStyle.Paragraph)
             .setPlaceholder(
               "Введите ответ заявителю..."
             )
@@ -410,13 +390,11 @@ client.on(
         return;
       }
 
-      // -------------------------------------------------
-      // Принять
-      // -------------------------------------------------
+      // ===============================================
+      // ACCEPT
+      // ===============================================
 
-      if (
-        interaction.customId === "accept"
-      ) {
+      if (interaction.customId === "accept") {
 
         await interaction.reply({
           content:
@@ -426,13 +404,11 @@ client.on(
         return;
       }
 
-      // -------------------------------------------------
-      // Отклонить
-      // -------------------------------------------------
+      // ===============================================
+      // REJECT
+      // ===============================================
 
-      if (
-        interaction.customId === "reject"
-      ) {
+      if (interaction.customId === "reject") {
 
         await interaction.reply({
           content:
@@ -447,15 +423,12 @@ client.on(
     // MODAL
     // =================================================
 
-    if (
-      interaction.isModalSubmit()
-    ) {
+    if (interaction.isModalSubmit()) {
 
       if (
         interaction.customId !==
         "reply_modal"
       ) {
-
         return;
       }
 
@@ -484,9 +457,9 @@ client.on(
       const embed =
         message.embeds[0];
 
-      // -------------------------------------------------
-      // Находим Discord пользователя
-      // -------------------------------------------------
+      // ===============================================
+      // DISCORD FIELD
+      // ===============================================
 
       const discordField =
         embed.fields?.find(
@@ -506,10 +479,14 @@ client.on(
         return;
       }
 
-      const username =
+      let username =
         discordField.value
           .replace(/^@/, "")
           .trim();
+
+      // ===============================================
+      // GUILD
+      // ===============================================
 
       const guild =
         interaction.guild;
@@ -525,9 +502,9 @@ client.on(
         return;
       }
 
-      // -------------------------------------------------
-      // Ищем пользователя
-      // -------------------------------------------------
+      // ===============================================
+      // FIND MEMBER
+      // ===============================================
 
       try {
 
@@ -573,9 +550,9 @@ client.on(
           return;
         }
 
-        // -------------------------------------------------
-        // Отправляем ЛС
-        // -------------------------------------------------
+        // =============================================
+        // SEND DM
+        // =============================================
 
         try {
 
@@ -592,7 +569,7 @@ client.on(
         } catch (dmError) {
 
           console.error(
-            "Ошибка отправки ЛС:",
+            "❌ Ошибка отправки ЛС:",
             dmError
           );
 
@@ -607,7 +584,7 @@ client.on(
       } catch (error) {
 
         console.error(
-          "Ошибка поиска пользователя:",
+          "❌ Ошибка поиска пользователя:",
           error
         );
 
@@ -630,377 +607,41 @@ client.once(
   async () => {
 
     console.log(
-      `🦫 Бот запущен: ${client.user.tag}`
+      "================================="
     );
 
-    // =================================================
-    // КАНАЛ «КАК ВСТУПИТЬ»
-    // =================================================
-
-    try {
-
-      const joinChannel =
-        await client.channels.fetch(
-          JOIN_CHANNEL_ID
-        );
-
-      if (!joinChannel) {
-
-        console.log(
-          "❌ Канал «Как вступить» не найден."
-        );
-
-      } else {
-
-        const messages =
-          await joinChannel.messages.fetch({
-            limit: 50
-          });
-
-        const alreadyPosted =
-          messages.some(
-            message =>
-              message.author.id ===
-                client.user.id &&
-              message.embeds.some(
-                embed =>
-                  embed.title ===
-                  "📝 КАК ВСТУПИТЬ В ULSA VOLUNTEER CENTER"
-              )
-          );
-
-        if (!alreadyPosted) {
-
-          const joinEmbed =
-            new EmbedBuilder()
-              .setColor("#2774AE")
-              .setTitle(
-                "📝 КАК ВСТУПИТЬ В ULSA VOLUNTEER CENTER"
-              )
-              .setDescription(
-                "**ULSA Volunteer Center** открыт для студентов, желающих принимать участие в университетских, общественных и благотворительных мероприятиях.\n\n" +
-
-                "### 01. ОЗНАКОМЬТЕСЬ С ПРАВИЛАМИ\n\n" +
-
-                "Перед подачей заявки необходимо ознакомиться с правилами Volunteer Center.\n\n" +
-
-                "### 02. ЗАПОЛНИТЕ ЗАЯВКУ\n\n" +
-
-                "Для вступления необходимо заполнить официальную заявку волонтёра.\n\n" +
-
-                "**Форма заявки:**\n" +
-                "https://tally.so/r/QKQrDk\n\n" +
-
-                "### 03. ДОЖДИТЕСЬ РАССМОТРЕНИЯ\n\n" +
-
-                "После отправки заявки она поступает на рассмотрение руководству ULSA Volunteer Center.\n\n" +
-
-                "### 04. ПОЛУЧИТЕ РЕШЕНИЕ\n\n" +
-
-                "После рассмотрения кандидат получает уведомление о результате.\n\n" +
-
-                "✅ **Заявка одобрена** — кандидат принят в состав Volunteer Center.\n\n" +
-
-                "⏳ **Требуется дополнительная информация** — необходимо уточнить отдельные данные.\n\n" +
-
-                "❌ **Заявка отклонена** — кандидат не принят в состав Volunteer Center.\n\n" +
-
-                "### 05. НАЧНИТЕ ВОЛОНТЁРСКУЮ ДЕЯТЕЛЬНОСТЬ\n\n" +
-
-                "После принятия волонтёр получает соответствующую роль на сервере и может принимать участие в доступных мероприятиях и проектах.\n\n" +
-
-                "### 💙 ВАЖНО\n\n" +
-
-                "Волонтёрская деятельность осуществляется на **добровольной основе**. От участника ожидаются ответственность, соблюдение правил и уважительное отношение к другим участникам.\n\n" +
-
-                "**🦫 Присоединяйтесь к ULSA Volunteer Center.**"
-              )
-              .setImage(JOIN_IMAGE)
-              .setFooter({
-                text:
-                  "ULSA Volunteer Center • Volunteer Recruitment"
-              })
-              .setTimestamp();
-
-          await joinChannel.send({
-            embeds: [joinEmbed]
-          });
-
-          console.log(
-            "📝 Сообщение «Как вступить» опубликовано."
-          );
-
-        } else {
-
-          console.log(
-            "📝 «Как вступить» уже опубликовано."
-          );
-        }
-      }
-
-    } catch (error) {
-
-      console.error(
-        "❌ Ошибка канала «Как вступить»:",
-        error
-      );
-    }
-
-    // =================================================
-    // КАНАЛ ПРАВИЛ
-    // =================================================
-
-    try {
-
-      const rulesChannel =
-        await client.channels.fetch(
-          RULES_CHANNEL_ID
-        );
-
-      if (!rulesChannel) {
-
-        console.log(
-          "❌ Канал правил не найден."
-        );
-
-      } else {
-
-        const messages =
-          await rulesChannel.messages.fetch({
-            limit: 50
-          });
-
-        const alreadyPosted =
-          messages.some(
-            message =>
-              message.author.id ===
-                client.user.id &&
-              message.embeds.some(
-                embed =>
-                  embed.title ===
-                  "ULSA VOLUNTEER CENTER"
-              )
-          );
-
-        if (
-          alreadyPosted
-        ) {
-
-          console.log(
-            "📑 Правила уже опубликованы."
-          );
-
-        } else {
-
-          const rules = [
-
-            {
-              title:
-                "ULSA VOLUNTEER CENTER",
-
-              description:
-`## ПРАВИЛА И ПОЛОЖЕНИЯ ДЛЯ ВОЛОНТЁРОВ
-
-### 1. ОБЩИЕ ПОЛОЖЕНИЯ
-
-ULSA Volunteer Center осуществляет координацию и организацию волонтёрской деятельности студентов в рамках университетского сообщества, общественных инициатив и проводимых мероприятий.
-
-Участие в волонтёрской деятельности осуществляется на добровольной основе и предполагает соблюдение установленных требований, ответственное отношение к порученным обязанностям и уважительное отношение к другим участникам.
-
-Вступление в состав ULSA Volunteer Center означает согласие волонтёра с настоящими правилами.
-
-### 2. ОБЯЗАННОСТИ ВОЛОНТЁРА
-
-Каждый волонтёр обязан:
-
-• добросовестно выполнять возложенные на него обязанности;
-• соблюдать установленное время начала мероприятий и назначений;
-• выполнять законные указания руководителя Volunteer Center;
-• соблюдать правила университета и места проведения мероприятия;
-• поддерживать уважительное и профессиональное поведение;
-• своевременно сообщать руководителю о невозможности выполнения поручения;
-• незамедлительно сообщать о возникших проблемах, инцидентах и нарушениях;
-• бережно относиться к имуществу университета и Volunteer Center.`
-            },
-
-            {
-              title:
-                "ULSA VOLUNTEER CENTER • ПРАВИЛА",
-
-              description:
-`### 3. ПОВЕДЕНИЕ И ПРОФЕССИОНАЛЬНАЯ ЭТИКА
-
-Волонтёр обязан соблюдать нормы уважительного поведения при взаимодействии со студентами, сотрудниками университета, посетителями мероприятий и другими волонтёрами.
-
-Не допускаются:
-
-• оскорбления и унижение других лиц;
-• угрозы и агрессивное поведение;
-• преследование и травля;
-• дискриминация;
-• намеренное нарушение порядка проведения мероприятий;
-• действия, способные нанести ущерб репутации ULSA Volunteer Center;
-• использование статуса волонтёра в личных целях.
-
-### 4. АЛКОГОЛЬ, ТАБАК И ЗАПРЕЩЁННЫЕ ВЕЩЕСТВА
-
-Запрещается принимать участие в волонтёрской деятельности в состоянии алкогольного или наркотического опьянения.
-
-Во время выполнения волонтёрских обязанностей запрещается хранение, употребление или распространение запрещённых веществ.
-
-Курение и использование табачных или никотиновых изделий допускается исключительно в местах, где это разрешено правилами соответствующей территории.`
-            },
-
-            {
-              title:
-                "ULSA VOLUNTEER CENTER • БЕЗОПАСНОСТЬ",
-
-              description:
-`### 5. ТРЕБОВАНИЯ БЕЗОПАСНОСТИ
-
-Безопасность участников мероприятий является приоритетной обязанностью каждого волонтёра.
-
-Волонтёр обязан:
-
-• соблюдать установленные правила безопасности;
-• выполнять указания ответственных лиц;
-• использовать оборудование только по назначению;
-• не выполнять работу, для которой отсутствует необходимая подготовка или разрешение;
-• незамедлительно сообщать об опасных ситуациях;
-• сообщать ответственному лицу о полученных травмах и происшествиях.
-
-### 6. КОНФИДЕНЦИАЛЬНОСТЬ
-
-В процессе волонтёрской деятельности участнику может стать доступна личная или иная информация, не предназначенная для публичного распространения.
-
-Распространение такой информации без соответствующего разрешения запрещается.
-
-Персональные данные участников мероприятий и других лиц не могут использоваться в личных целях.`
-            },
-
-            {
-              title:
-                "ULSA VOLUNTEER CENTER • ИМУЩЕСТВО И УЧАСТИЕ",
-
-              description:
-`### 7. ИМУЩЕСТВО И РЕСУРСЫ УНИВЕРСИТЕТА
-
-Имущество, оборудование, помещения, документы и иные ресурсы университета и Volunteer Center должны использоваться исключительно в соответствии с их назначением.
-
-Запрещаются умышленное повреждение, хищение, незаконное присвоение и неправомерное использование имущества.
-
-### 8. ПОСЕЩЕНИЕ И УЧАСТИЕ В МЕРОПРИЯТИЯХ
-
-Волонтёр обязан соблюдать принятые им обязательства при регистрации на мероприятие.
-
-В случае невозможности присутствия необходимо уведомить руководителя или ответственного организатора в разумный срок.
-
-Систематическое отсутствие без предварительного уведомления может повлечь ограничение возможности участия в последующих мероприятиях.`
-            },
-
-            {
-              title:
-                "ULSA VOLUNTEER CENTER • ПРЕДСТАВЛЕНИЕ",
-
-              description:
-`### 9. ПРЕДСТАВЛЕНИЕ ULSA VOLUNTEER CENTER
-
-Во время официальных мероприятий волонтёр представляет ULSA Volunteer Center.
-
-Волонтёр не имеет права без соответствующего разрешения:
-
-• делать официальные заявления от имени организации;
-• принимать решения от имени руководства;
-• давать обязательства от имени ULSA Volunteer Center;
-• использовать название и символику организации в личных целях.
-
-### 10. РАССМОТРЕНИЕ ЖАЛОБ И НАРУШЕНИЙ
-
-Любой волонтёр вправе сообщить руководству о:
-
-• нарушении настоящих правил;
-• небезопасных условиях;
-• случаях неуважительного поведения;
-• дискриминации или преследовании;
-• иных обстоятельствах, препятствующих нормальной работе Volunteer Center.
-
-Обращения рассматриваются руководством Volunteer Center в установленном порядке.`
-            },
-
-            {
-              title:
-                "ULSA VOLUNTEER CENTER • ОТВЕТСТВЕННОСТЬ",
-
-              description:
-`### 11. МЕРЫ ЗА НАРУШЕНИЕ ПРАВИЛ
-
-В зависимости от характера и тяжести нарушения могут применяться следующие меры:
-
-**I.** Устное или письменное предупреждение;
-
-**II.** Временное ограничение участия в мероприятиях;
-
-**III.** Отстранение от конкретного мероприятия;
-
-**IV.** Лишение статуса волонтёра;
-
-**V.** Передача информации соответствующим представителям университета в случаях, когда это необходимо.
-
-### 12. ЗАКЛЮЧИТЕЛЬНЫЕ ПОЛОЖЕНИЯ
-
-Каждый участник ULSA Volunteer Center обязан ознакомиться с настоящими правилами до начала волонтёрской деятельности.
-
-Участие в деятельности Volunteer Center означает согласие соблюдать установленные требования и нести ответственность за свои действия в рамках предоставленных полномочий.
-
-**ULSA Volunteer Center**
-**Отдел волонтёрской деятельности**`
-            }
-
-          ];
-
-          for (
-            const rule of rules
-          ) {
-
-            const embed =
-              new EmbedBuilder()
-                .setColor("#2774AE")
-                .setTitle(rule.title)
-                .setDescription(
-                  rule.description
-                )
-                .setImage(
-                  RULES_IMAGE
-                )
-                .setFooter({
-                  text:
-                    "ULSA Volunteer Center • Volunteer Guidelines"
-                })
-                .setTimestamp();
-
-            await rulesChannel.send({
-              embeds: [embed]
-            });
-          }
-
-          console.log(
-            "📑 Все правила опубликованы."
-          );
-        }
-      }
-
-    } catch (error) {
-
-      console.error(
-        "❌ Ошибка публикации правил:",
-        error
-      );
-    }
+    console.log(
+      `🦫 ULSA BOT ONLINE: ${client.user.tag}`
+    );
+
+    console.log(
+      "================================="
+    );
+
+    console.log(
+      `📩 Applications: ${APPLICATIONS_CHANNEL_ID}`
+    );
+
+    console.log(
+      `📝 Join channel: ${JOIN_CHANNEL_ID}`
+    );
+
+    console.log(
+      `📜 Rules channel: ${RULES_CHANNEL_ID}`
+    );
+
+    console.log(
+      "ℹ️ Автоматическая публикация правил отключена."
+    );
+
+    console.log(
+      "ℹ️ Автоматическая публикация «Как вступить» отключена."
+    );
   }
 );
 
 // =====================================================
-// ERROR HANDLING
+// DISCORD ERROR
 // =====================================================
 
 client.on(
@@ -1015,7 +656,33 @@ client.on(
 );
 
 // =====================================================
-// START
+// PROCESS ERRORS
+// =====================================================
+
+process.on(
+  "unhandledRejection",
+  error => {
+
+    console.error(
+      "❌ Unhandled Promise Rejection:",
+      error
+    );
+  }
+);
+
+process.on(
+  "uncaughtException",
+  error => {
+
+    console.error(
+      "❌ Uncaught Exception:",
+      error
+    );
+  }
+);
+
+// =====================================================
+// WEB SERVER START
 // =====================================================
 
 const PORT =
@@ -1026,12 +693,15 @@ app.listen(
   () => {
 
     console.log(
-      `🌐 Сервер запущен на порту ${PORT}`
+      `🌐 Web server запущен на порту ${PORT}`
     );
   }
 );
 
+// =====================================================
+// LOGIN
+// =====================================================
+
 client.login(
   DISCORD_TOKEN
 );
-```
