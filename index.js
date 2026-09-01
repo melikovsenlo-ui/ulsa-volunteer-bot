@@ -23,11 +23,15 @@ const client = new Client({
   ]
 });
 
+// =====================================================
+// ENV
+// =====================================================
+
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CHANNEL_ID = process.env.CHANNEL_ID;
 
 // =====================================================
-// НАСТРОЙКИ ULSA
+// ULSA SETTINGS
 // =====================================================
 
 const GUEST_ROLE_ID = "1544145435755683882";
@@ -37,11 +41,17 @@ const INFO_CHANNEL_ID = "1544134320120406057";
 const RULES_CHANNEL_ID = "1544128560598622279";
 const JOIN_CHANNEL_ID = "1544138828300820510";
 
-const JOIN_IMAGE =
-  "https://cdn.discordapp.com/attachments/1544134320120406057/1544138865214759074/1788221749501-01a05a51-aa0e-771c-a6a9-98c739901b26.png?ex=6a976ae2&is=6a961962&hm=d2d69649eb9bf496b0b1d5b97e7762da5b30a456322d21a733ffcb9acd9ae450&";
+const APPLICATION_CHANNEL_ID = "1544104767570059334";
 
-const RULES_IMAGE =
-  "https://cdn.discordapp.com/attachments/1544134320120406057/1544136397751976087/1788220793888-01a05a43-226f-7898-9b9d-c4ccc917fb67.png?ex=6a976895&is=6a961715&hm=4eb8a4f6aabcf3fc5ff79ede94dd841d9c1776d1c8da6b0374569a90e3ed26f8&";
+// =====================================================
+// IMAGES
+// =====================================================
+
+const INFO_IMAGE =
+  "https://cdn.discordapp.com/attachments/1544134320120406057/1544170042500059207/1788221693470-D0B8D0B7D0BED0B1D180D0B0D0B6D0B5D0BDD0B8D0B5.png?ex=6a9787eb&is=6a96366b&hm=bbf7a33368f8e83f20d63628c9b1a7b8eecaa59b62846ce7ec1e3b7afd88f65a&";
+
+const JOIN_IMAGE =
+  "https://cdn.discordapp.com/attachments/1544138828300820510/1544170195608801330/1788221749501-01a05a51-aa0e-771c-a6a9-98c739901b26.png?ex=6a97880f&is=6a96368f&hm=4564c857f3c81635ff94bf8e4d0d85a7b5be8ab19a0129802409bf7e71d83da0&";
 
 // =====================================================
 // WEB SERVER
@@ -52,17 +62,19 @@ app.get("/", (req, res) => {
 });
 
 // =====================================================
-// TALLY — ПОЛУЧЕНИЕ ЗАЯВКИ
+// TALLY APPLICATION
 // =====================================================
 
 app.post("/tally", async (req, res) => {
   try {
     const data = req.body;
 
-    const channel = await client.channels.fetch(CHANNEL_ID);
+    const channel = await client.channels.fetch(
+      APPLICATION_CHANNEL_ID || CHANNEL_ID
+    );
 
     if (!channel) {
-      return res.status(500).send("Канал не найден");
+      return res.status(500).send("Канал заявок не найден");
     }
 
     const fields = data?.data?.fields || [];
@@ -87,19 +99,24 @@ app.post("/tally", async (req, res) => {
         value = "Не указано";
       }
 
+      const textValue = String(value);
+
+      // Ищем Discord username
       if (
         name.toLowerCase().includes("discord")
       ) {
-        applicant = String(value);
+        applicant = textValue;
       }
 
-      description += `**${name}:** ${value}\n`;
+      description +=
+        `**${name}:** ${textValue}\n`;
     }
 
     if (!description) {
       description = "Данные заявки не найдены.";
     }
 
+    // Discord Embed description максимум 4096 символов
     if (description.length > 4000) {
       description =
         description.substring(0, 3900) +
@@ -119,23 +136,24 @@ app.post("/tally", async (req, res) => {
         text: "ULSA Volunteer Center"
       });
 
-    const buttons = new ActionRowBuilder().addComponents(
+    const buttons =
+      new ActionRowBuilder().addComponents(
 
-      new ButtonBuilder()
-        .setCustomId("reply")
-        .setLabel("💬 Ответить")
-        .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId("reply")
+          .setLabel("💬 Ответить")
+          .setStyle(ButtonStyle.Primary),
 
-      new ButtonBuilder()
-        .setCustomId("accept")
-        .setLabel("✅ Принять")
-        .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId("accept")
+          .setLabel("✅ Принять")
+          .setStyle(ButtonStyle.Success),
 
-      new ButtonBuilder()
-        .setCustomId("reject")
-        .setLabel("❌ Отклонить")
-        .setStyle(ButtonStyle.Danger)
-    );
+        new ButtonBuilder()
+          .setCustomId("reject")
+          .setLabel("❌ Отклонить")
+          .setStyle(ButtonStyle.Danger)
+      );
 
     await channel.send({
       embeds: [embed],
@@ -152,35 +170,42 @@ app.post("/tally", async (req, res) => {
 });
 
 // =====================================================
-// INTERACTIONS
+// DISCORD INTERACTIONS
 // =====================================================
 
 client.on("interactionCreate", async (interaction) => {
 
+  // ===================================================
+  // BUTTONS
+  // ===================================================
+
   if (interaction.isButton()) {
 
     // =================================================
-    // ОТВЕТИТЬ
+    // REPLY
     // =================================================
 
     if (interaction.customId === "reply") {
 
-      const modal = new ModalBuilder()
-        .setCustomId("reply_modal")
-        .setTitle("Ответ заявителю");
+      const modal =
+        new ModalBuilder()
+          .setCustomId("reply_modal")
+          .setTitle("Ответ заявителю");
 
-      const answer = new TextInputBuilder()
-        .setCustomId("answer")
-        .setLabel("Ваш ответ")
-        .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder(
-          "Введите ответ заявителю..."
-        )
-        .setRequired(true)
-        .setMaxLength(2000);
+      const answer =
+        new TextInputBuilder()
+          .setCustomId("answer")
+          .setLabel("Ваш ответ")
+          .setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder(
+            "Введите ответ заявителю..."
+          )
+          .setRequired(true)
+          .setMaxLength(2000);
 
-      const row = new ActionRowBuilder()
-        .addComponents(answer);
+      const row =
+        new ActionRowBuilder()
+          .addComponents(answer);
 
       modal.addComponents(row);
 
@@ -190,7 +215,7 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     // =================================================
-    // ПРИНЯТЬ
+    // ACCEPT
     // =================================================
 
     if (interaction.customId === "accept") {
@@ -228,9 +253,10 @@ client.on("interactionCreate", async (interaction) => {
           return;
         }
 
-        const username = discordField.value
-          .replace("@", "")
-          .trim();
+        const username =
+          discordField.value
+            .replace(/^@/, "")
+            .trim();
 
         const guild = interaction.guild;
 
@@ -241,17 +267,19 @@ client.on("interactionCreate", async (interaction) => {
           return;
         }
 
+        // Получаем участников
         const members =
           await guild.members.fetch();
 
-        const member = members.find(
-          member =>
-            member.user.username.toLowerCase() ===
-              username.toLowerCase() ||
+        const member =
+          members.find(
+            member =>
+              member.user.username.toLowerCase() ===
+                username.toLowerCase() ||
 
-            member.user.tag.toLowerCase() ===
-              username.toLowerCase()
-        );
+              member.user.tag.toLowerCase() ===
+                username.toLowerCase()
+          );
 
         if (!member) {
 
@@ -263,11 +291,16 @@ client.on("interactionCreate", async (interaction) => {
           return;
         }
 
+        // Получаем роли
         const guestRole =
-          guild.roles.cache.get(GUEST_ROLE_ID);
+          guild.roles.cache.get(
+            GUEST_ROLE_ID
+          );
 
         const volunteerRole =
-          guild.roles.cache.get(VOLUNTEER_ROLE_ID);
+          guild.roles.cache.get(
+            VOLUNTEER_ROLE_ID
+          );
 
         if (!guestRole) {
           await interaction.editReply(
@@ -283,16 +316,18 @@ client.on("interactionCreate", async (interaction) => {
           return;
         }
 
+        // Проверяем бота
         const botMember =
           guild.members.me;
 
         if (!botMember) {
           await interaction.editReply(
-            "❌ Не удалось определить бота на сервере."
+            "❌ Не удалось определить бота."
           );
           return;
         }
 
+        // Проверяем Manage Roles
         if (
           !botMember.permissions.has(
             PermissionsBitField.Flags.ManageRoles
@@ -304,39 +339,50 @@ client.on("interactionCreate", async (interaction) => {
           return;
         }
 
+        // Проверяем иерархию
         if (
           volunteerRole.position >=
           botMember.roles.highest.position
         ) {
+
           await interaction.editReply(
             "❌ Бот не может выдать роль Volunteer.\n\n" +
-            "Перемести роль **🤖 ULSA Bot** выше роли **🦫 Volunteer** в настройках ролей Discord."
+            "Перемести роль **🦫 Volunteer** ниже роли бота в настройках ролей Discord."
           );
+
           return;
         }
 
+        // Выдаём Volunteer
         await member.roles.add(
           volunteerRole,
           "Заявка ULSA Volunteer Center одобрена"
         );
 
+        // Убираем Guest
         if (
           member.roles.cache.has(
             GUEST_ROLE_ID
           )
         ) {
+
           await member.roles.remove(
             guestRole,
             "Пользователь принят в ULSA Volunteer Center"
           );
         }
 
+        // =================================================
+        // DM ACCEPT
+        // =================================================
+
         try {
 
           await member.send({
             content:
               "🦫 **ULSA VOLUNTEER CENTER**\n\n" +
-              "🎉 Поздравляем! Твоя заявка на вступление в **ULSA Volunteer Center** была одобрена.\n\n" +
+              "🎉 Поздравляем!\n\n" +
+              "Твоя заявка на вступление в **ULSA Volunteer Center** была одобрена.\n\n" +
               "Тебе выдана роль **🦫 Volunteer**.\n\n" +
               "Добро пожаловать в команду! 💙"
           });
@@ -347,6 +393,10 @@ client.on("interactionCreate", async (interaction) => {
             "⚠️ Не удалось отправить ЛС принятому пользователю."
           );
         }
+
+        // =================================================
+        // DISABLE BUTTONS
+        // =================================================
 
         const disabledButtons =
           new ActionRowBuilder().addComponents(
@@ -397,7 +447,7 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     // =================================================
-    // ОТКЛОНИТЬ
+    // REJECT
     // =================================================
 
     if (interaction.customId === "reject") {
@@ -406,9 +456,11 @@ client.on("interactionCreate", async (interaction) => {
 
       try {
 
-        const message = interaction.message;
+        const message =
+          interaction.message;
 
-        const embed = message.embeds[0];
+        const embed =
+          message.embeds[0];
 
         const discordField =
           embed?.fields?.find(
@@ -426,11 +478,13 @@ client.on("interactionCreate", async (interaction) => {
           return;
         }
 
-        const username = discordField.value
-          .replace("@", "")
-          .trim();
+        const username =
+          discordField.value
+            .replace(/^@/, "")
+            .trim();
 
-        const guild = interaction.guild;
+        const guild =
+          interaction.guild;
 
         if (!guild) {
 
@@ -444,14 +498,19 @@ client.on("interactionCreate", async (interaction) => {
         const members =
           await guild.members.fetch();
 
-        const member = members.find(
-          member =>
-            member.user.username.toLowerCase() ===
-              username.toLowerCase() ||
+        const member =
+          members.find(
+            member =>
+              member.user.username.toLowerCase() ===
+                username.toLowerCase() ||
 
-            member.user.tag.toLowerCase() ===
-              username.toLowerCase()
-        );
+              member.user.tag.toLowerCase() ===
+                username.toLowerCase()
+          );
+
+        // =================================================
+        // DM REJECT
+        // =================================================
 
         if (member) {
 
@@ -472,6 +531,10 @@ client.on("interactionCreate", async (interaction) => {
             );
           }
         }
+
+        // =================================================
+        // DISABLE BUTTONS
+        // =================================================
 
         const disabledButtons =
           new ActionRowBuilder().addComponents(
@@ -520,7 +583,7 @@ client.on("interactionCreate", async (interaction) => {
   }
 
   // ===================================================
-  // MODAL — ОТВЕТ
+  // MODAL — REPLY
   // ===================================================
 
   if (interaction.isModalSubmit()) {
@@ -575,7 +638,7 @@ client.on("interactionCreate", async (interaction) => {
 
       const username =
         discordField.value
-          .replace("@", "")
+          .replace(/^@/, "")
           .trim();
 
       const guild =
@@ -642,7 +705,10 @@ client.on("interactionCreate", async (interaction) => {
 
       } catch (error) {
 
-        console.error(error);
+        console.error(
+          "Ошибка при поиске пользователя:",
+          error
+        );
 
         await interaction.reply({
           content:
@@ -657,7 +723,100 @@ client.on("interactionCreate", async (interaction) => {
 });
 
 // =====================================================
-// ПОКАЗ "КАК ВСТУПИТЬ"
+// INFORMATION
+// =====================================================
+
+async function postInformation() {
+
+  const channel =
+    await client.channels.fetch(
+      INFO_CHANNEL_ID
+    );
+
+  if (!channel) {
+
+    console.log(
+      "❌ Канал информации не найден."
+    );
+
+    return;
+  }
+
+  const messages =
+    await channel.messages.fetch({
+      limit: 20
+    });
+
+  const alreadyPosted =
+    messages.some(
+      message =>
+        message.author.id ===
+          client.user.id &&
+
+        message.embeds.some(
+          embed =>
+            embed.title ===
+            "ℹ️ ULSA VOLUNTEER CENTER"
+        )
+    );
+
+  if (alreadyPosted) {
+
+    console.log(
+      "ℹ️ «Информация» уже опубликована."
+    );
+
+    return;
+  }
+
+  const embed =
+    new EmbedBuilder()
+      .setColor("#2774AE")
+      .setTitle(
+        "ℹ️ ULSA VOLUNTEER CENTER"
+      )
+      .setDescription(
+        "## ДОБРО ПОЖАЛОВАТЬ В ULSA VOLUNTEER CENTER\n\n" +
+
+        "ULSA Volunteer Center — это студенческая организация, объединяющая добровольцев для участия в университетских, общественных и благотворительных инициативах.\n\n" +
+
+        "### 🦫 НАША ДЕЯТЕЛЬНОСТЬ\n\n" +
+
+        "• Волонтёрские мероприятия\n" +
+        "• Благотворительные проекты\n" +
+        "• Помощь университетскому сообществу\n" +
+        "• Спортивные и оздоровительные инициативы\n" +
+        "• Социальные и культурные мероприятия\n\n" +
+
+        "### 💙 НАША ЦЕЛЬ\n\n" +
+
+        "Создавать возможности для студентов принимать активное участие в жизни университета и помогать окружающему сообществу.\n\n" +
+
+        "### 📋 ХОТИТЕ ПРИСОЕДИНИТЬСЯ?\n\n" +
+
+        `Ознакомьтесь с <#${RULES_CHANNEL_ID}>, после чего перейдите в <#${JOIN_CHANNEL_ID}> и заполните заявку.\n\n` +
+
+        "**ULSA Volunteer Center**\n" +
+        "Volunteer • Serve • Connect"
+      )
+      .setImage(INFO_IMAGE)
+      .setFooter({
+        text:
+          "ULSA Volunteer Center"
+      })
+      .setTimestamp();
+
+  await channel.send({
+    embeds: [embed]
+  });
+
+  console.log(
+    "ℹ️ «Информация» опубликована."
+  );
+}
+
+// =====================================================
+// HOW TO JOIN
 // =====================================================
 
 async function postJoinInformation() {
@@ -668,9 +827,11 @@ async function postJoinInformation() {
     );
 
   if (!channel) {
+
     console.log(
       "❌ Канал «Как вступить» не найден."
     );
+
     return;
   }
 
@@ -708,6 +869,7 @@ async function postJoinInformation() {
         "📝 КАК ВСТУПИТЬ В ULSA VOLUNTEER CENTER"
       )
       .setDescription(
+
         "**ULSA Volunteer Center** открыт для студентов, желающих принимать участие в университетских, общественных и благотворительных мероприятиях.\n\n" +
 
         "### 01. ОЗНАКОМЬТЕСЬ С ПРАВИЛАМИ\n\n" +
@@ -768,7 +930,7 @@ async function postJoinInformation() {
 }
 
 // =====================================================
-// ПРАВИЛА
+// RULES
 // =====================================================
 
 async function postRules() {
@@ -990,7 +1152,6 @@ ULSA Volunteer Center осуществляет координацию и орг�
         .setColor("#2774AE")
         .setTitle(rule.title)
         .setDescription(rule.description)
-        .setImage(RULES_IMAGE)
         .setFooter({
           text:
             "ULSA Volunteer Center • Volunteer Guidelines"
@@ -1019,9 +1180,15 @@ client.once("clientReady", async () => {
 
   try {
 
+    await postInformation();
+
     await postJoinInformation();
 
     await postRules();
+
+    console.log(
+      "✅ Все стартовые функции выполнены."
+    );
 
   } catch (error) {
 
@@ -1033,7 +1200,7 @@ client.once("clientReady", async () => {
 });
 
 // =====================================================
-// ОБРАБОТКА ОШИБОК
+// ERRORS
 // =====================================================
 
 client.on("error", error => {
