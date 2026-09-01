@@ -101,22 +101,17 @@ app.post("/tally", async (req, res) => {
 
       const textValue = String(value);
 
-      // Ищем Discord username
-      if (
-        name.toLowerCase().includes("discord")
-      ) {
+      if (name.toLowerCase().includes("discord")) {
         applicant = textValue;
       }
 
-      description +=
-        `**${name}:** ${textValue}\n`;
+      description += `**${name}:** ${textValue}\n`;
     }
 
     if (!description) {
       description = "Данные заявки не найдены.";
     }
 
-    // Discord Embed description максимум 4096 символов
     if (description.length > 4000) {
       description =
         description.substring(0, 3900) +
@@ -136,24 +131,22 @@ app.post("/tally", async (req, res) => {
         text: "ULSA Volunteer Center"
       });
 
-    const buttons =
-      new ActionRowBuilder().addComponents(
+    const buttons = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("reply")
+        .setLabel("💬 Ответить")
+        .setStyle(ButtonStyle.Primary),
 
-        new ButtonBuilder()
-          .setCustomId("reply")
-          .setLabel("💬 Ответить")
-          .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId("accept")
+        .setLabel("✅ Принять")
+        .setStyle(ButtonStyle.Success),
 
-        new ButtonBuilder()
-          .setCustomId("accept")
-          .setLabel("✅ Принять")
-          .setStyle(ButtonStyle.Success),
-
-        new ButtonBuilder()
-          .setCustomId("reject")
-          .setLabel("❌ Отклонить")
-          .setStyle(ButtonStyle.Danger)
-      );
+      new ButtonBuilder()
+        .setCustomId("reject")
+        .setLabel("❌ Отклонить")
+        .setStyle(ButtonStyle.Danger)
+    );
 
     await channel.send({
       embeds: [embed],
@@ -164,7 +157,6 @@ app.post("/tally", async (req, res) => {
 
   } catch (error) {
     console.error("Ошибка Tally:", error);
-
     res.status(500).send("Ошибка");
   }
 });
@@ -187,25 +179,20 @@ client.on("interactionCreate", async (interaction) => {
 
     if (interaction.customId === "reply") {
 
-      const modal =
-        new ModalBuilder()
-          .setCustomId("reply_modal")
-          .setTitle("Ответ заявителю");
+      const modal = new ModalBuilder()
+        .setCustomId("reply_modal")
+        .setTitle("Ответ заявителю");
 
-      const answer =
-        new TextInputBuilder()
-          .setCustomId("answer")
-          .setLabel("Ваш ответ")
-          .setStyle(TextInputStyle.Paragraph)
-          .setPlaceholder(
-            "Введите ответ заявителю..."
-          )
-          .setRequired(true)
-          .setMaxLength(2000);
+      const answer = new TextInputBuilder()
+        .setCustomId("answer")
+        .setLabel("Ваш ответ")
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder("Введите ответ заявителю...")
+        .setRequired(true)
+        .setMaxLength(2000);
 
-      const row =
-        new ActionRowBuilder()
-          .addComponents(answer);
+      const row = new ActionRowBuilder()
+        .addComponents(answer);
 
       modal.addComponents(row);
 
@@ -239,12 +226,10 @@ client.on("interactionCreate", async (interaction) => {
 
         const embed = message.embeds[0];
 
-        const discordField =
-          embed.fields?.find(
-            field =>
-              field.name ===
-              "👤 Discord заявителя"
-          );
+        const discordField = embed.fields?.find(
+          field =>
+            field.name === "👤 Discord заявителя"
+        );
 
         if (!discordField) {
           await interaction.editReply(
@@ -253,10 +238,9 @@ client.on("interactionCreate", async (interaction) => {
           return;
         }
 
-        const username =
-          discordField.value
-            .replace(/^@/, "")
-            .trim();
+        const username = discordField.value
+          .replace(/^@/, "")
+          .trim();
 
         const guild = interaction.guild;
 
@@ -267,40 +251,32 @@ client.on("interactionCreate", async (interaction) => {
           return;
         }
 
-        // Получаем участников
-        const members =
-          await guild.members.fetch();
+        const members = await guild.members.fetch();
 
-        const member =
-          members.find(
-            member =>
-              member.user.username.toLowerCase() ===
-                username.toLowerCase() ||
+        const member = members.find(
+          member =>
+            member.user.username.toLowerCase() ===
+              username.toLowerCase() ||
 
-              member.user.tag.toLowerCase() ===
-                username.toLowerCase()
-          );
+            member.user.tag.toLowerCase() ===
+              username.toLowerCase()
+        );
 
         if (!member) {
-
           await interaction.editReply(
             `❌ Пользователь **${username}** не найден на сервере.\n\n` +
             `Убедись, что в заявке указан правильный Discord username.`
           );
-
           return;
         }
 
-        // Получаем роли
-        const guestRole =
-          guild.roles.cache.get(
-            GUEST_ROLE_ID
-          );
+        const guestRole = guild.roles.cache.get(
+          GUEST_ROLE_ID
+        );
 
-        const volunteerRole =
-          guild.roles.cache.get(
-            VOLUNTEER_ROLE_ID
-          );
+        const volunteerRole = guild.roles.cache.get(
+          VOLUNTEER_ROLE_ID
+        );
 
         if (!guestRole) {
           await interaction.editReply(
@@ -316,9 +292,7 @@ client.on("interactionCreate", async (interaction) => {
           return;
         }
 
-        // Проверяем бота
-        const botMember =
-          guild.members.me;
+        const botMember = guild.members.me;
 
         if (!botMember) {
           await interaction.editReply(
@@ -327,7 +301,6 @@ client.on("interactionCreate", async (interaction) => {
           return;
         }
 
-        // Проверяем Manage Roles
         if (
           !botMember.permissions.has(
             PermissionsBitField.Flags.ManageRoles
@@ -339,33 +312,25 @@ client.on("interactionCreate", async (interaction) => {
           return;
         }
 
-        // Проверяем иерархию
         if (
           volunteerRole.position >=
           botMember.roles.highest.position
         ) {
-
           await interaction.editReply(
             "❌ Бот не может выдать роль Volunteer.\n\n" +
             "Перемести роль **🦫 Volunteer** ниже роли бота в настройках ролей Discord."
           );
-
           return;
         }
 
-        // Выдаём Volunteer
         await member.roles.add(
           volunteerRole,
           "Заявка ULSA Volunteer Center одобрена"
         );
 
-        // Убираем Guest
         if (
-          member.roles.cache.has(
-            GUEST_ROLE_ID
-          )
+          member.roles.cache.has(GUEST_ROLE_ID)
         ) {
-
           await member.roles.remove(
             guestRole,
             "Пользователь принят в ULSA Volunteer Center"
@@ -456,57 +421,45 @@ client.on("interactionCreate", async (interaction) => {
 
       try {
 
-        const message =
-          interaction.message;
+        const message = interaction.message;
 
-        const embed =
-          message.embeds[0];
+        const embed = message.embeds[0];
 
-        const discordField =
-          embed?.fields?.find(
-            field =>
-              field.name ===
-              "👤 Discord заявителя"
-          );
+        const discordField = embed?.fields?.find(
+          field =>
+            field.name === "👤 Discord заявителя"
+        );
 
         if (!discordField) {
-
           await interaction.editReply(
             "❌ Не удалось определить заявителя."
           );
-
           return;
         }
 
-        const username =
-          discordField.value
-            .replace(/^@/, "")
-            .trim();
+        const username = discordField.value
+          .replace(/^@/, "")
+          .trim();
 
-        const guild =
-          interaction.guild;
+        const guild = interaction.guild;
 
         if (!guild) {
-
           await interaction.editReply(
             "❌ Не удалось определить сервер."
           );
-
           return;
         }
 
-        const members =
-          await guild.members.fetch();
+        const members = await guild.members.fetch();
 
-        const member =
-          members.find(
-            member =>
-              member.user.username.toLowerCase() ===
-                username.toLowerCase() ||
+        const member = members.find(
+          member =>
+            member.user.username.toLowerCase() ===
+              username.toLowerCase() ||
 
-              member.user.tag.toLowerCase() ===
-                username.toLowerCase()
-          );
+            member.user.tag.toLowerCase() ===
+              username.toLowerCase()
+        );
 
         // =================================================
         // DM REJECT
@@ -589,8 +542,7 @@ client.on("interactionCreate", async (interaction) => {
   if (interaction.isModalSubmit()) {
 
     if (
-      interaction.customId ===
-      "reply_modal"
+      interaction.customId === "reply_modal"
     ) {
 
       const answer =
@@ -742,33 +694,6 @@ async function postInformation() {
     return;
   }
 
-  const messages =
-    await channel.messages.fetch({
-      limit: 20
-    });
-
-  const alreadyPosted =
-    messages.some(
-      message =>
-        message.author.id ===
-          client.user.id &&
-
-        message.embeds.some(
-          embed =>
-            embed.title ===
-            "ℹ️ ULSA VOLUNTEER CENTER"
-        )
-    );
-
-  if (alreadyPosted) {
-
-    console.log(
-      "ℹ️ «Информация» уже опубликована."
-    );
-
-    return;
-  }
-
   const embed =
     new EmbedBuilder()
       .setColor("#2774AE")
@@ -801,8 +726,7 @@ async function postInformation() {
       )
       .setImage(INFO_IMAGE)
       .setFooter({
-        text:
-          "ULSA Volunteer Center"
+        text: "ULSA Volunteer Center"
       })
       .setTimestamp();
 
@@ -830,33 +754,6 @@ async function postJoinInformation() {
 
     console.log(
       "❌ Канал «Как вступить» не найден."
-    );
-
-    return;
-  }
-
-  const messages =
-    await channel.messages.fetch({
-      limit: 20
-    });
-
-  const alreadyPosted =
-    messages.some(
-      message =>
-        message.author.id ===
-          client.user.id &&
-
-        message.embeds.some(
-          embed =>
-            embed.title ===
-            "📝 КАК ВСТУПИТЬ В ULSA VOLUNTEER CENTER"
-        )
-    );
-
-  if (alreadyPosted) {
-
-    console.log(
-      "📝 «Как вступить» уже опубликовано."
     );
 
     return;
@@ -925,7 +822,7 @@ async function postJoinInformation() {
   });
 
   console.log(
-    "📝 Сообщение «Как вступить» отправлено."
+    "📝 «Как вступить» опубликовано."
   );
 }
 
@@ -944,33 +841,6 @@ async function postRules() {
 
     console.log(
       "❌ Канал правил не найден."
-    );
-
-    return;
-  }
-
-  const messages =
-    await channel.messages.fetch({
-      limit: 20
-    });
-
-  const alreadyPosted =
-    messages.some(
-      message =>
-        message.author.id ===
-          client.user.id &&
-
-        message.embeds.some(
-          embed =>
-            embed.title ===
-            "ULSA VOLUNTEER CENTER"
-        )
-    );
-
-  if (alreadyPosted) {
-
-    console.log(
-      "📑 Правила уже опубликованы."
     );
 
     return;
@@ -1180,6 +1050,7 @@ client.once("clientReady", async () => {
 
   try {
 
+    // При каждом запуске отправляем новые сообщения
     await postInformation();
 
     await postJoinInformation();
